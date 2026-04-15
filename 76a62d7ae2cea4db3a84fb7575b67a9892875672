@@ -1,0 +1,25 @@
+football-injuries/index.html
+  6e5b67e4bede4e19 555,623,920-953
+index.html
+  6e5b67e4bede4e19 1-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "76a62d7ae2cea4db3a84fb7575b67a9892875672",
+  "prompts": {
+    "6e5b67e4bede4e19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "085b45c4-306a-4d34-8783-479bbba563e9",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "David Hodge",
+      "messages": [],
+      "total_additions": 205,
+      "total_deletions": 15,
+      "accepted_lines": 205,
+      "overriden_lines": 0
+    }
+  }
+}
