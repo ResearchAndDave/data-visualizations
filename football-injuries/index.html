@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Pitch Report -- Soccer Injury Field Analysis</title>
+<style>
+/* -- Design Tokens -- */
+:root {
+  /* Accent — dynamically represents worst surface */
+  --accent: hsl(7, 55%, 42%);
+  --accent-light: hsl(7, 55%, 65%);
+  --accent-bg: hsl(7, 30%, 96%);
+
+  /* Neutrals — warm-tinted grays */
+  --neutral-900: hsl(30, 10%, 10%);
+  --neutral-600: hsl(30, 5%, 40%);
+  --neutral-400: hsl(30, 5%, 55%);
+  --neutral-bar: hsl(30, 5%, 40%);
+  --neutral-bar-light: hsl(30, 5%, 65%);
+  --neutral-200: hsl(30, 12%, 88%);
+  --neutral-100: hsl(30, 15%, 92%);
+  --neutral-50: hsl(30, 25%, 98%);
+  --bg: hsl(30, 25%, 98%);
+  --white: hsl(0, 0%, 100%);
+  --border: hsl(30, 10%, 85%);
+  --border-light: hsl(30, 10%, 92%);
+
+  /* Source banners */
+  --banner-synthetic-bg: hsl(45, 100%, 93%);
+  --banner-synthetic-border: hsl(45, 80%, 70%);
+  --banner-synthetic-text: hsl(45, 90%, 30%);
+  --banner-real-bg: hsl(130, 40%, 93%);
+  --banner-real-border: hsl(130, 40%, 70%);
+  --banner-real-text: hsl(130, 50%, 25%);
+}
+
+/* -- Reset and Base -- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: Georgia, 'Times New Roman', serif;
+  background: var(--bg);
+  color: var(--neutral-900);
+  min-height: 100vh;
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+/* -- Typography -- */
+.ui { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; }
+h1 { font-size: 36px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
+h2 { font-size: 20px; font-weight: 700; line-height: 1.2; }
+h3 { font-size: 18px; font-weight: 700; line-height: 1.2; }
+
+/* -- Layout -- */
+.container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+/* -- Masthead -- */
+.masthead { border-bottom: 3px double var(--border); padding: 16px 0 12px; text-align: center; }
+.masthead-label { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--neutral-600); font-weight: 400; line-height: 1; }
+
+/* -- Source Banner -- */
+.source-banner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 8px 16px; margin: 16px 0 0; border-radius: 4px; font-size: 14px; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; line-height: 1; }
+.source-banner.synthetic { background: var(--banner-synthetic-bg); border: 1px solid var(--banner-synthetic-border); }
+.source-banner.real { background: var(--banner-real-bg); border: 1px solid var(--banner-real-border); }
+.source-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; line-height: 1; }
+.source-banner button { padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--white); cursor: pointer; font-size: 12px; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; line-height: 1; min-height: 44px; min-width: 44px; }
+.source-banner button:hover { background: var(--neutral-100); }
+
+/* -- Headline Block -- */
+.headline-block { text-align: center; padding: 48px 0 24px; border-bottom: 1px solid var(--border); }
+.headline-block h1 { max-width: 680px; margin: 0 auto 16px; }
+.headline-block .dek { font-size: 16px; color: var(--neutral-600); max-width: 560px; margin: 0 auto 12px; line-height: 1.6; }
+.headline-block .byline { font-size: 12px; color: var(--neutral-600); font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; letter-spacing: 0.5px; line-height: 1; }
+
+/* -- Key Findings -- */
+.findings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); margin: 24px 0; border: 1px solid var(--border); }
+.finding-card { background: var(--white); padding: 16px 12px; text-align: center; }
+.finding-value { font-size: 24px; font-weight: 700; line-height: 1.1; }
+.finding-value.accent { color: var(--accent); }
+.finding-label { font-size: 12px; color: var(--neutral-600); margin-top: 4px; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; text-transform: uppercase; letter-spacing: 1px; line-height: 1; }
+
+/* -- Section -- */
+.narrative-section { padding: 32px 0; border-top: 1px solid var(--border-light); }
+.narrative-section h2 { margin-bottom: 4px; }
+.narrative-section .section-intro { font-size: 14px; color: var(--neutral-600); margin-bottom: 16px; line-height: 1.6; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; }
+
+/* -- Hero Chart Bars -- */
+.hero-surface-group { margin-bottom: 8px; }
+.hero-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.hero-bar-label { width: 96px; text-align: right; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; font-weight: 600; line-height: 1; flex-shrink: 0; }
+.hero-bar-track { flex: 1; height: 16px; position: relative; }
+.hero-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; transition: width 0.4s ease; }
+.hero-bar-value { font-family: monospace; font-size: 12px; color: var(--neutral-600); margin-left: 4px; white-space: nowrap; line-height: 1; }
+.hero-annotation { margin-left: 104px; font-size: 12px; color: var(--accent); font-style: italic; margin-top: 2px; margin-bottom: 8px; line-height: 1.5; }
+
+/* -- Per-Team Rate Bars -- */
+.rate-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.rate-bar-label { width: 96px; text-align: right; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; font-weight: 600; line-height: 1; flex-shrink: 0; }
+.rate-bar-track { flex: 1; height: 12px; position: relative; }
+.rate-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; }
+.rate-bar-value { font-family: monospace; font-size: 12px; color: var(--neutral-600); margin-left: 4px; line-height: 1; }
+
+/* -- Callout -- */
+.callout { margin: 32px 0; padding: 16px 24px; border-left: 4px solid var(--accent); background: var(--accent-bg); }
+.callout-number { font-size: 30px; font-weight: 700; color: var(--accent); line-height: 1.1; }
+.callout-text { font-size: 14px; color: var(--neutral-900); margin-top: 4px; line-height: 1.6; }
+
+/* -- Injury Type Bars -- */
+.injury-surface-group { margin-bottom: 16px; }
+.injury-surface-label { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; line-height: 1; }
+.injury-bar-row { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+.injury-bar-label { width: 96px; text-align: right; font-size: 12px; color: var(--neutral-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1; flex-shrink: 0; }
+.injury-bar-track { flex: 1; height: 8px; position: relative; }
+.injury-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; }
+.injury-bar-value { font-family: monospace; font-size: 12px; font-weight: 600; width: 24px; text-align: right; line-height: 1; }
+
+/* -- Team Row -- */
+.team-row { display: flex; align-items: baseline; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border-light); }
+.team-row:nth-child(even) { background: var(--neutral-50); }
+.team-rank { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: var(--neutral-600); width: 24px; text-align: right; line-height: 1; flex-shrink: 0; }
+.team-name { font-size: 14px; font-weight: 700; line-height: 1.2; }
+.team-surface-tag { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; margin-left: 8px; line-height: 1; }
+.team-surface-tag.accent { color: var(--accent); }
+.team-surface-tag.neutral { color: var(--neutral-600); }
+.team-league { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: var(--neutral-600); line-height: 1; }
+.team-count { font-family: monospace; font-size: 14px; font-weight: 700; width: 32px; text-align: right; line-height: 1; flex-shrink: 0; }
+
+/* -- Player Card -- */
+.player-entry { padding: 12px 0; border-bottom: 1px solid var(--border-light); }
+.player-header { display: flex; align-items: baseline; justify-content: space-between; }
+.player-name { font-size: 14px; font-weight: 700; line-height: 1.2; }
+.player-team { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: var(--neutral-600); margin-left: 8px; line-height: 1; }
+.player-count { font-family: monospace; font-size: 18px; font-weight: 700; line-height: 1; }
+.player-injuries { margin-top: 4px; }
+.player-injury-line { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: var(--neutral-600); line-height: 1.6; }
+.player-injury-line .accent-bullet { color: var(--accent); font-weight: 600; }
+.player-injury-line .severe { color: var(--accent); font-weight: 600; }
+.player-more { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: var(--neutral-400); line-height: 1.6; }
+
+/* -- Search Input -- */
+.search-input { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: Georgia, serif; background: var(--white); width: 200px; line-height: 1.5; min-height: 44px; }
+
+/* -- Sticky Filter Bar -- */
+.filter-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 24px; background: var(--white); border-bottom: 1px solid var(--border); box-shadow: 0 1px 4px hsla(30, 10%, 10%, 0.08); font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; transform: translateY(-100%); transition: transform 0.3s ease; }
+.filter-bar.visible { transform: translateY(0); }
+.filter-bar .filter-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--neutral-600); font-weight: 600; line-height: 1; }
+.filter-bar select { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: Georgia, serif; background: var(--white); line-height: 1.5; min-height: 44px; }
+.filter-bar .filter-count { font-size: 12px; color: var(--neutral-600); margin-left: auto; line-height: 1; }
+.filter-bar .filter-reset { font-size: 12px; color: var(--accent); cursor: pointer; border: none; background: none; text-decoration: underline; padding: 4px; min-height: 44px; min-width: 44px; display: flex; align-items: center; }
+
+/* -- Empty State -- */
+.empty-state { text-align: center; padding: 64px 24px; }
+.empty-state h3 { margin-bottom: 8px; color: var(--neutral-900); font-size: 18px; }
+.empty-state p { font-size: 14px; color: var(--neutral-600); margin-bottom: 16px; line-height: 1.6; }
+.empty-state button { padding: 8px 24px; border: 1px solid var(--border); border-radius: 4px; background: var(--white); cursor: pointer; font-size: 14px; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; line-height: 1; min-height: 44px; }
+.empty-state button:hover { background: var(--neutral-100); }
+
+/* -- Footer -- */
+.site-footer { border-top: 1px solid var(--border); padding: 24px 0 48px; margin-top: 48px; }
+.site-footer h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; margin-bottom: 8px; line-height: 1; }
+.site-footer p { font-size: 12px; color: var(--neutral-600); line-height: 1.75; max-width: 680px; }
+
+/* -- Focus -- */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* -- Source attribution -- */
+.source-attr { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: var(--neutral-400); margin-top: 8px; line-height: 1; }
+</style>
+</head>
+<body>
+<!-- Content rendered by JavaScript -->
+<script>
+'use strict';
+
+// -- Data Constants --
+var LEAGUES = [
+  { id: 'mls', name: 'MLS' }, { id: 'epl', name: 'Premier League' },
+  { id: 'laliga', name: 'La Liga' }, { id: 'bundesliga', name: 'Bundesliga' },
+  { id: 'seriea', name: 'Serie A' }, { id: 'ligue1', name: 'Ligue 1' },
+];
+var FIELD_CONTEXTS = ['Game Field', 'Practice Field'];
+var SEVERITY_LEVELS = ['Minor', 'Moderate', 'Severe'];
+var INJURY_TYPES_LIST = ['ACL Tear','Hamstring Strain','Ankle Sprain','Knee Contusion','Calf Strain','Groin Pull','Achilles Tendinitis','Quad Strain','Hip Flexor','Concussion','Metatarsal Fracture','MCL Sprain'];
+var TEAMS_DATA = {
+  mls: [
+    { name: 'D.C. United', surface: 'Turf', city: 'Washington' },
+    { name: 'Inter Miami CF', surface: 'Grass', city: 'Fort Lauderdale' },
+    { name: 'LA Galaxy', surface: 'Grass', city: 'Carson' },
+    { name: 'Atlanta United', surface: 'Retractable', city: 'Atlanta' },
+    { name: 'Seattle Sounders', surface: 'Turf', city: 'Seattle' },
+    { name: 'NYCFC', surface: 'Grass', city: 'New York' },
+    { name: 'Portland Timbers', surface: 'Grass', city: 'Portland' },
+    { name: 'New England Revolution', surface: 'Turf', city: 'Foxborough' },
+    { name: 'FC Cincinnati', surface: 'Hybrid', city: 'Cincinnati' },
+    { name: 'Nashville SC', surface: 'Grass', city: 'Nashville' },
+  ],
+  epl: [
+    { name: 'Arsenal', surface: 'Hybrid', city: 'London' },
+    { name: 'Manchester City', surface: 'Hybrid', city: 'Manchester' },
+    { name: 'Liverpool', surface: 'Hybrid', city: 'Liverpool' },
+    { name: 'Chelsea', surface: 'Hybrid', city: 'London' },
+    { name: 'Tottenham', surface: 'Retractable', city: 'London' },
+    { name: 'Manchester United', surface: 'Hybrid', city: 'Manchester' },
+    { name: 'Newcastle United', surface: 'Hybrid', city: 'Newcastle' },
+    { name: 'Aston Villa', surface: 'Grass', city: 'Birmingham' },
+    { name: 'Brighton', surface: 'Grass', city: 'Brighton' },
+    { name: 'West Ham', surface: 'Grass', city: 'London' },
+  ],
+  laliga: [
+    { name: 'Real Madrid', surface: 'Retractable', city: 'Madrid' },
+    { name: 'Barcelona', surface: 'Hybrid', city: 'Barcelona' },
+    { name: 'Atletico Madrid', surface: 'Grass', city: 'Madrid' },
+    { name: 'Real Sociedad', surface: 'Grass', city: 'San Sebastian' },
+    { name: 'Sevilla', surface: 'Grass', city: 'Seville' },
+    { name: 'Real Betis', surface: 'Grass', city: 'Seville' },
+    { name: 'Valencia', surface: 'Grass', city: 'Valencia' },
+    { name: 'Villarreal', surface: 'Grass', city: 'Villarreal' },
+    { name: 'Athletic Club', surface: 'Grass', city: 'Bilbao' },
+    { name: 'Osasuna', surface: 'Grass', city: 'Pamplona' },
+  ],
+  bundesliga: [
+    { name: 'Bayern Munich', surface: 'Hybrid', city: 'Munich' },
+    { name: 'Borussia Dortmund', surface: 'Grass', city: 'Dortmund' },
+    { name: 'RB Leipzig', surface: 'Grass', city: 'Leipzig' },
+    { name: 'Bayer Leverkusen', surface: 'Grass', city: 'Leverkusen' },
+    { name: 'Eintracht Frankfurt', surface: 'Grass', city: 'Frankfurt' },
+    { name: 'VfB Stuttgart', surface: 'Grass', city: 'Stuttgart' },
+  ],
+  seriea: [
+    { name: 'Inter Milan', surface: 'Grass', city: 'Milan' },
+    { name: 'AC Milan', surface: 'Grass', city: 'Milan' },
+    { name: 'Juventus', surface: 'Grass', city: 'Turin' },
+    { name: 'Napoli', surface: 'Grass', city: 'Naples' },
+    { name: 'AS Roma', surface: 'Grass', city: 'Rome' },
+    { name: 'Lazio', surface: 'Grass', city: 'Rome' },
+  ],
+  ligue1: [
+    { name: 'Paris Saint-Germain', surface: 'Hybrid', city: 'Paris' },
+    { name: 'Marseille', surface: 'Grass', city: 'Marseille' },
+    { name: 'Lyon', surface: 'Hybrid', city: 'Lyon' },
+    { name: 'Monaco', surface: 'Grass', city: 'Monaco' },
+    { name: 'Lille', surface: 'Grass', city: 'Lille' },
+    { name: 'Nice', surface: 'Grass', city: 'Nice' },
+  ],
+};
+var PLAYER_NAMES = {
+  mls: { 'D.C. United': ['Christian Benteke','Mateusz Klich','Martin Rodriguez','Aaron Herrera','Donovan Pines','Russell Canouse','Lucas Bartlett','Pedro Santos','Taxiarchis Fountas','Derrick Williams'], 'Inter Miami CF': ['Lionel Messi','Sergio Busquets','Jordi Alba','Luis Suarez','Drake Callender','DeAndre Yedlin','Tomas Aviles','Benjamin Cremaschi','Robert Taylor','Facundo Farias'], 'LA Galaxy': ['Riqui Puig','Dejan Joveljic','Joseph Paintsil','Marco Reus','John McCarthy','Julian Aude','Mark Delgado','Gaston Brugman','Maya Yoshida','Diego Fagundez'], 'Atlanta United': ['Giorgos Giakoumakis','Brooks Lennon','Brad Guzan','Saba Lobzhanidze','Dax McCarty','Jay Fortune','Ronald Hernandez','Noah Cobb','Xande Silva','Stian Gregersen'], 'Seattle Sounders': ['Raul Ruidiaz','Jordan Morris','Joao Paulo','Albert Rusnak','Cristian Roldan','Nouhou Tolo','Alex Roldan','Stefan Frei','Jackson Ragen','Josh Atencio'], 'NYCFC': ['Talles Magno','Santiago Rodriguez','Maxi Moralez','Alonso Martinez','Hannes Wolf','Thiago Andrade','Justin Haak','Kevin OToole','Tayvon Gray','Birk Risa'], 'Portland Timbers': ['Evander','Santiago Moreno','Dairon Asprilla','Diego Chara','Claudio Bravo','Juan Mosquera','Zac McGraw','Eric Miller','David Ayala','Eryk Williamson'], 'New England Revolution': ['Carles Gil','Gustavo Bou','Bobby Wood','Brandon Bye','Matt Polster','DeJuan Jones','Dylan Borrero','Emmanuel Boateng','Tommy McNamara','Andrew Farrell'], 'FC Cincinnati': ['Luciano Acosta','Aaron Boupendza','Brenner Souza','Matt Miazga','Roman Celentano','Obinna Nwobodo','Luca Orellano','Nick Hagglund','Alvas Powell','Yuya Kubo'], 'Nashville SC': ['Hany Mukhtar','Sam Surridge','Jacob Shaffelburg','Walker Zimmerman','Joe Willis','Daniel Rios','Sean Davis','Shaq Moore','Jack Maher','Dru Yearwood'] },
+  epl: { 'Arsenal': ['Bukayo Saka','Martin Odegaard','William Saliba','Declan Rice','Gabriel Jesus','Kai Havertz','Ben White','Gabriel Martinelli','Aaron Ramsdale','Leandro Trossard'], 'Manchester City': ['Erling Haaland','Kevin De Bruyne','Phil Foden','Bernardo Silva','Jack Grealish','Rodri','John Stones','Kyle Walker','Ederson','Julian Alvarez'], 'Liverpool': ['Mohamed Salah','Virgil van Dijk','Trent Alexander-Arnold','Darwin Nunez','Diogo Jota','Luis Diaz','Alisson','Cody Gakpo','Dominik Szoboszlai','Ibrahima Konate'], 'Chelsea': ['Cole Palmer','Enzo Fernandez','Moises Caicedo','Raheem Sterling','Noni Madueke','Reece James','Malo Gusto','Levi Colwill','Robert Sanchez','Christopher Nkunku'], 'Tottenham': ['Son Heung-min','James Maddison','Richarlison','Cristian Romero','Micky van de Ven','Dejan Kulusevski','Guglielmo Vicario','Brennan Johnson','Yves Bissouma','Destiny Udogie'], 'Manchester United': ['Marcus Rashford','Bruno Fernandes','Rasmus Hojlund','Casemiro','Kobbie Mainoo','Alejandro Garnacho','Lisandro Martinez','Luke Shaw','Andre Onana','Diogo Dalot'], 'Newcastle United': ['Alexander Isak','Anthony Gordon','Bruno Guimaraes','Joelinton','Sandro Tonali','Kieran Trippier','Dan Burn','Harvey Barnes','Nick Pope','Callum Wilson'], 'Aston Villa': ['Ollie Watkins','Douglas Luiz','Moussa Diaby','Leon Bailey','Youri Tielemans','Matty Cash','Ezri Konsa','Pau Torres','Emiliano Martinez','John McGinn'], 'Brighton': ['Kaoru Mitoma','Joao Pedro','Evan Ferguson','Pervis Estupinan','Lewis Dunk','James Milner','Carlos Baleba','Danny Welbeck','Pascal Gross','Solly March'], 'West Ham': ['Mohammed Kudus','James Ward-Prowse','Lucas Paqueta','Jarrod Bowen','Michail Antonio','Tomas Soucek','Alphonse Areola','Kurt Zouma','Vladimir Coufal','Edson Alvarez'] },
+  laliga: { 'Real Madrid': ['Jude Bellingham','Vinicius Junior','Toni Kroos','Eduardo Camavinga','Rodrygo','Luka Modric','Aurelien Tchouameni','David Alaba','Thibaut Courtois','Dani Carvajal'], 'Barcelona': ['Robert Lewandowski','Lamine Yamal','Pedri','Gavi','Ronald Araujo','Frenkie de Jong','Joao Felix','Raphinha','Marc-Andre ter Stegen','Jules Kounde'], 'Atletico Madrid': ['Antoine Griezmann','Alvaro Morata','Marcos Llorente','Koke','Jose Gimenez','Jan Oblak','Rodrigo De Paul','Angel Correa','Nahuel Molina','Axel Witsel'], 'Real Sociedad': ['Martin Zubimendi','Take Kubo','Mikel Oyarzabal','Brais Mendez','Alexander Sorloth','Alex Remiro','Robin Le Normand','Mikel Merino','Aihen Munoz','Arsen Zakharyan'], 'Sevilla': ['Youssef En-Nesyri','Lucas Ocampos','Jesus Navas','Bryan Gil','Nemanja Gudelj','Ivan Rakitic','Erik Lamela','Loic Bade','Marcos Acuna','Orjan Nyland'], 'Real Betis': ['Isco','Ayoze Perez','Nabil Fekir','Borja Iglesias','Guido Rodriguez','German Pezzella','Rui Silva','Hector Bellerin','Marc Bartra','Luiz Felipe'], 'Valencia': ['Hugo Duro','Pepelu','Jose Gaya','Giorgi Mamardashvili','Javi Guerra','Mouctar Diakhaby','Thierry Correia','Diego Lopez','Justin Kluivert','Samu Castillejo'], 'Villarreal': ['Gerard Moreno','Alex Baena','Yeremy Pino','Juan Foyth','Dani Parejo','Alfonso Pedraza','Filip Jorgensen','Arnaut Danjuma','Pau Torres','Nicolas Jackson'], 'Athletic Club': ['Nico Williams','Inaki Williams','Oihan Sancet','Iker Muniain','Unai Simon','Dani Vivian','Yeray Alvarez','Yuri Berchiche','Mikel Vesga','Alex Berenguer'], 'Osasuna': ['Ante Budimir','Chimy Avila','Moi Gomez','Aimar Oroz','Sergio Herrera','David Garcia','Nacho Vidal','Lucas Torro','Jon Moncayola','Ruben Garcia'] },
+  bundesliga: { 'Bayern Munich': ['Harry Kane','Jamal Musiala','Leroy Sane','Joshua Kimmich','Thomas Muller','Dayot Upamecano','Alphonso Davies','Min-jae Kim','Manuel Neuer','Serge Gnabry'], 'Borussia Dortmund': ['Gregor Kobel','Julian Brandt','Niclas Fullkrug','Mats Hummels','Ian Maatsen','Marcel Sabitzer','Emre Can','Karim Adeyemi','Donyell Malen','Jamie Gittens'], 'RB Leipzig': ['Xavi Simons','Dani Olmo','Benjamin Sesko','Kevin Kampl','Willi Orban','Lukas Klostermann','Christoph Baumgartner','Peter Gulacsi','David Raum','Amadou Haidara'], 'Bayer Leverkusen': ['Florian Wirtz','Jonathan Tah','Jeremie Frimpong','Granit Xhaka','Victor Boniface','Alex Grimaldo','Exequiel Palacios','Lukas Hradecky','Robert Andrich','Amine Adli'], 'Eintracht Frankfurt': ['Omar Marmoush','Mario Gotze','Robin Koch','Ansgar Knauff','Kevin Trapp','Ellyes Skhiri','Willian Pacho','Hugo Ekitike','Fares Chaibi','Rasmus Kristensen'], 'VfB Stuttgart': ['Serhou Guirassy','Chris Fuhrich','Waldemar Anton','Hiroki Ito','Silas Katompa Mvumpa','Enzo Millot','Atakan Karazor','Maximilian Mittelstadt','Alexander Nubel','Jamie Leweling'] },
+  seriea: { 'Inter Milan': ['Lautaro Martinez','Nicolo Barella','Hakan Calhanoglu','Marcus Thuram','Federico Dimarco','Alessandro Bastoni','Henrikh Mkhitaryan','Denzel Dumfries','Francesco Acerbi','Yann Sommer'], 'AC Milan': ['Rafael Leao','Christian Pulisic','Theo Hernandez','Olivier Giroud','Tijjani Reijnders','Mike Maignan','Fikayo Tomori','Yunus Musah','Samuel Chukwueze','Davide Calabria'], 'Juventus': ['Dusan Vlahovic','Federico Chiesa','Adrien Rabiot','Bremer','Filip Kostic','Danilo','Manuel Locatelli','Andrea Cambiaso','Gleison Bremer','Fabio Miretti'], 'Napoli': ['Victor Osimhen','Khvicha Kvaratskhelia','Piotr Zielinski','Giovanni Di Lorenzo','Stanislav Lobotka','Matteo Politano','Amir Rrahmani','Alex Meret','Andre-Frank Zambo Anguissa','Giacomo Raspadori'], 'AS Roma': ['Paulo Dybala','Romelu Lukaku','Lorenzo Pellegrini','Chris Smalling','Gianluca Mancini','Bryan Cristante','Stephan El Shaarawy','Andrea Belotti','Evan NDicka','Mile Svilar'], 'Lazio': ['Ciro Immobile','Mattia Zaccagni','Luis Alberto','Felipe Anderson','Ivan Provedel','Nicolo Casale','Adam Marusic','Danilo Cataldi','Gustav Isaksen','Taty Castellanos'] },
+  ligue1: { 'Paris Saint-Germain': ['Kylian Mbappe','Ousmane Dembele','Achraf Hakimi','Marquinhos','Vitinha','Warren Zaire-Emery','Gianluigi Donnarumma','Bradley Barcola','Fabian Ruiz','Randal Kolo Muani'], 'Marseille': ['Pierre-Emerick Aubameyang','Jonathan Clauss','Amine Harit','Chancel Mbemba','Iliman Ndiaye','Pau Lopez','Jordan Veretout','Azzedine Ounahi','Samuel Gigot','Ismaila Sarr'], 'Lyon': ['Alexandre Lacazette','Rayan Cherki','Nemanja Matic','Nicolas Tagliafico','Corentin Tolisso','Anthony Lopes','Jake OBrien','Sael Kumbedi','Orel Mangala','Ernest Nuamah'], 'Monaco': ['Wissam Ben Yedder','Aleksandr Golovin','Takumi Minamino','Vanderson','Denis Zakaria','Breel Embolo','Youssouf Fofana','Folarin Balogun','Caio Henrique','Eliesse Ben Seghir'], 'Lille': ['Jonathan David','Jonathan Bamba','Remy Cabella','Benjamin Andre','Jose Fonte','Lucas Chevalier','Tiago Santos','Angel Gomes','Bafode Diakite','Edon Zhegrova'], 'Nice': ['Terem Moffi','Ross Barkley','Aaron Ramsey','Youcef Atal','Jean-Clair Todibo','Marcin Bulka','Khephren Thuram','Sofiane Diop','Nicolas Pepe','Morgan Schneiderlin'] },
+};
+
+// -- Seeded RNG --
+function seededRandom(seed) {
+  var s = seed;
+  return function() {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+function generateSyntheticData() {
+  var rng = seededRandom(42);
+  var injuries = [];
+  var id = 0;
+  var surfaceWeights = { Grass: 0.30, Turf: 0.38, Hybrid: 0.18, Retractable: 0.14 };
+  var contextWeights = { 'Game Field': 0.65, 'Practice Field': 0.35 };
+  var severityWeights = { Minor: 0.45, Moderate: 0.35, Severe: 0.20 };
+
+  function weightedPick(weights) {
+    var r = rng();
+    var cumulative = 0;
+    for (var key of Object.keys(weights)) {
+      cumulative += weights[key];
+      if (r < cumulative) return key;
+    }
+    return Object.keys(weights).pop();
+  }
+
+  for (var league of LEAGUES) {
+    var teams = TEAMS_DATA[league.id];
+    for (var team of teams) {
+      var players = PLAYER_NAMES[league.id][team.name];
+      var count = Math.floor(rng() * 14) + 6;
+      for (var i = 0; i < count; i++) {
+        var player = players[Math.floor(rng() * players.length)];
+        var surface = weightedPick(surfaceWeights);
+        var context = weightedPick(contextWeights);
+        var severity = weightedPick(severityWeights);
+        var injuryType = INJURY_TYPES_LIST[Math.floor(rng() * INJURY_TYPES_LIST.length)];
+        var month = Math.floor(rng() * 12) + 1;
+        var day = Math.floor(rng() * 28) + 1;
+        var daysOut = severity === 'Minor' ? Math.floor(rng() * 14) + 1
+          : severity === 'Moderate' ? Math.floor(rng() * 42) + 14
+          : Math.floor(rng() * 120) + 42;
+        injuries.push({
+          id: id++, league: league.name, leagueId: league.id,
+          team: team.name, teamSurface: team.surface, city: team.city,
+          player: player, surface: surface, context: context,
+          injuryType: injuryType, severity: severity, daysOut: daysOut,
+          date: '2025-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0'),
+        });
+      }
+    }
+  }
+  return injuries;
+}
+
+// -- Application State --
+var state = {
+  injuries: generateSyntheticData(),
+  source: 'synthetic',
+  gamesBySurface: null,
+  filters: { league: 'all', team: 'all', surface: 'all', context: 'all', search: '' },
+};
+
+function getFiltered() {
+  var d = state.injuries;
+  var f = state.filters;
+  if (f.league !== 'all') d = d.filter(function(i) { return i.leagueId === f.league; });
+  if (f.team !== 'all') d = d.filter(function(i) { return i.team === f.team; });
+  if (f.surface !== 'all') d = d.filter(function(i) { return i.surface === f.surface; });
+  if (f.context !== 'all') d = d.filter(function(i) { return i.context === f.context; });
+  if (f.search) d = d.filter(function(i) { return i.player.toLowerCase().includes(f.search.toLowerCase()); });
+  return d;
+}
+
+function getLeagues() {
+  var m = new Map();
+  state.injuries.forEach(function(i) { if (!m.has(i.leagueId)) m.set(i.leagueId, { id: i.leagueId, name: i.league }); });
+  return Array.from(m.values());
+}
+
+function getSurfaces() {
+  return Array.from(new Set(state.injuries.map(function(i) { return i.surface; }))).filter(Boolean).sort();
+}
+
+function getTeams() {
+  var pool = state.injuries;
+  if (state.filters.league !== 'all') pool = pool.filter(function(i) { return i.leagueId === state.filters.league; });
+  return Array.from(new Set(pool.map(function(i) { return i.team; }))).sort();
+}
+
+function aggregate(data, key) {
+  var m = {};
+  data.forEach(function(i) { m[i[key]] = (m[i[key]] || 0) + 1; });
+  return Object.entries(m).map(function(e) { return { label: e[0], count: e[1] }; }).sort(function(a, b) { return b.count - a.count; });
+}
+
+function getWorstSurface(data) {
+  var counts = aggregate(data, 'surface');
+  return counts.length > 0 ? counts[0].label : 'Unknown';
+}
+
+function getTeamsBySurface(data) {
+  var teams = {};
+  data.forEach(function(i) {
+    var key = i.team + '|' + i.teamSurface;
+    if (!teams[key]) teams[key] = { team: i.team, surface: i.teamSurface };
+    teams[key] = { team: i.team, surface: i.teamSurface };
+  });
+  return Object.values(teams);
+}
+
+function getPerTeamRate(data) {
+  var surfaceCounts = {};
+  var surfaceTeams = {};
+  data.forEach(function(i) {
+    surfaceCounts[i.surface] = (surfaceCounts[i.surface] || 0) + 1;
+  });
+  var allTeams = getTeamsBySurface(data);
+  allTeams.forEach(function(t) {
+    if (!surfaceTeams[t.surface]) surfaceTeams[t.surface] = new Set();
+    surfaceTeams[t.surface].add(t.team);
+  });
+  return Object.keys(surfaceCounts).map(function(s) {
+    var teamCount = surfaceTeams[s] ? surfaceTeams[s].size : 1;
+    return { label: s, count: surfaceCounts[s], teams: teamCount, rate: surfaceCounts[s] / teamCount };
+  }).sort(function(a, b) { return b.rate - a.rate; });
+}
+
+function getInjuryTypeDisparity(data, worstSurface) {
+  var worstTypes = {};
+  var grassTypes = {};
+  var worstTotal = 0;
+  var grassTotal = 0;
+  data.forEach(function(i) {
+    if (i.surface === worstSurface) {
+      worstTypes[i.injuryType] = (worstTypes[i.injuryType] || 0) + 1;
+      worstTotal++;
+    } else if (i.surface === 'Grass') {
+      grassTypes[i.injuryType] = (grassTypes[i.injuryType] || 0) + 1;
+      grassTotal++;
+    }
+  });
+  var bestDisparity = { type: '', ratio: 0 };
+  Object.keys(worstTypes).forEach(function(type) {
+    var worstRate = worstTypes[type] / (worstTotal || 1);
+    var grassRate = (grassTypes[type] || 0) / (grassTotal || 1);
+    if (grassRate > 0) {
+      var ratio = worstRate / grassRate;
+      if (ratio > bestDisparity.ratio) {
+        bestDisparity = { type: type, ratio: ratio, worstCount: worstTypes[type], grassCount: grassTypes[type] || 0 };
+      }
+    }
+  });
+  return bestDisparity;
+}
+
+// -- File Loading --
+function loadJSON(file) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var j = JSON.parse(e.target.result);
+      var arr = j.injuries || j;
+      if (Array.isArray(arr) && arr.length > 0) {
+        state.injuries = arr.map(function(x, i) {
+          return {
+            id: x.id != null ? x.id : i, player: x.player || 'Unknown', team: x.team || 'Unknown',
+            league: x.league || 'Unknown', leagueId: x.leagueId || x.league_id || 'unknown',
+            surface: x.surface || 'Unknown', teamSurface: x.teamSurface || x.team_surface || x.surface || 'Unknown',
+            context: x.context || x.field_context || 'Game Field',
+            injuryType: x.injuryType || x.injury_type || x.injury_reason || 'Unknown',
+            severity: x.severity || 'Unknown', daysOut: x.daysOut || x.days_out || 0,
+            date: x.date || '', city: x.city || '',
+            homeAway: x.homeAway || '', opponentTeam: x.opponentTeam || '',
+          };
+        });
+        state.source = 'real - ' + (j.metadata && j.metadata.source ? j.metadata.source : file.name);
+        state.gamesBySurface = (j.metadata && j.metadata.games_by_surface) ? j.metadata.games_by_surface : null;
+        state.filters = { league: 'all', team: 'all', surface: 'all', context: 'all', search: '' };
+        render();
+      } else {
+        alert('JSON must contain an "injuries" array with at least one record.');
+      }
+    } catch (err) {
+      alert('Parse error: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function resetData() {
+  state.injuries = generateSyntheticData();
+  state.source = 'synthetic';
+  state.gamesBySurface = null;
+  state.filters = { league: 'all', team: 'all', surface: 'all', context: 'all', search: '' };
+  render();
+}
+
+// -- Rendering Helpers --
+function el(tag, attrs) {
+  var e = document.createElement(tag);
+  if (attrs) {
+    for (var k of Object.keys(attrs)) {
+      if (k === 'style' && typeof attrs[k] === 'object') {
+        Object.assign(e.style, attrs[k]);
+      } else if (k.startsWith('on')) {
+        e.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+      } else if (k === 'className') {
+        e.className = attrs[k];
+      } else {
+        e.setAttribute(k, attrs[k]);
+      }
+    }
+  }
+  // remaining arguments are children
+  for (var i = 2; i < arguments.length; i++) {
+    var c = arguments[i];
+    if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+    else if (c) e.appendChild(c);
+  }
+  return e;
+}
+
+var headlineEl = null; // reference for scroll observer
+
+function render() {
+  var filtered = getFiltered();
+  var leagues = getLeagues();
+  var surfaces = getSurfaces();
+  var teams = getTeams();
+  var worstSurface = getWorstSurface(filtered);
+
+  // Stats
+  var total = filtered.length;
+  var worstCount = filtered.filter(function(i) { return i.surface === worstSurface; }).length;
+  var grassCount = filtered.filter(function(i) { return i.surface === 'Grass'; }).length;
+  var vsGrassRate = grassCount > 0 ? '+' + ((worstCount / grassCount - 1) * 100).toFixed(0) + '%' : 'N/A';
+  var disparity = getInjuryTypeDisparity(filtered, worstSurface);
+  var disparityText = disparity.ratio > 0 ? disparity.ratio.toFixed(1) + 'x' : 'N/A';
+
+  while (document.body.firstChild) document.body.removeChild(document.body.firstChild);
+
+  // -- Sticky Filter Bar (hidden by default, shown on scroll) --
+  var filterBar = el('nav', { className: 'filter-bar', 'aria-label': 'Data filters' });
+  filterBar.id = 'filter-bar';
+  filterBar.appendChild(el('span', { className: 'filter-label' }, 'Filter:'));
+
+  var leagueSelect = el('select', { 'aria-label': 'Filter by league', onChange: function(e) { state.filters.league = e.target.value; state.filters.team = 'all'; render(); } });
+  leagueSelect.appendChild(el('option', { value: 'all' }, 'All Leagues'));
+  leagues.forEach(function(l) {
+    var opt = el('option', { value: l.id }, l.name);
+    if (state.filters.league === l.id) opt.selected = true;
+    leagueSelect.appendChild(opt);
+  });
+  filterBar.appendChild(leagueSelect);
+
+  var surfaceSelect = el('select', { 'aria-label': 'Filter by surface', onChange: function(e) { state.filters.surface = e.target.value; render(); } });
+  surfaceSelect.appendChild(el('option', { value: 'all' }, 'All Surfaces'));
+  surfaces.forEach(function(s) {
+    var opt = el('option', { value: s }, s);
+    if (state.filters.surface === s) opt.selected = true;
+    surfaceSelect.appendChild(opt);
+  });
+  filterBar.appendChild(surfaceSelect);
+
+  var contextSelect = el('select', { 'aria-label': 'Filter by context', onChange: function(e) { state.filters.context = e.target.value; render(); } });
+  contextSelect.appendChild(el('option', { value: 'all' }, 'All Contexts'));
+  ['Game Field', 'Practice Field'].forEach(function(c) {
+    var opt = el('option', { value: c }, c);
+    if (state.filters.context === c) opt.selected = true;
+    contextSelect.appendChild(opt);
+  });
+  filterBar.appendChild(contextSelect);
+
+  filterBar.appendChild(el('span', { className: 'filter-count' }, filtered.length.toLocaleString() + ' injuries'));
+
+  var hasFilters = state.filters.league !== 'all' || state.filters.surface !== 'all' || state.filters.context !== 'all';
+  if (hasFilters) {
+    filterBar.appendChild(el('button', { className: 'filter-reset', onClick: function() { state.filters = { league: 'all', team: 'all', surface: 'all', context: 'all', search: '' }; render(); } }, 'Reset'));
+  }
+  document.body.appendChild(filterBar);
+
+  // -- Masthead --
+  var masthead = el('header', { className: 'masthead' },
+    el('div', { className: 'masthead-label' }, 'The Pitch Report \u2014 Data Investigation')
+  );
+  document.body.appendChild(masthead);
+
+  var main = el('main', { className: 'container' });
+  document.body.appendChild(main);
+
+  // -- Source Banner --
+  var isSynthetic = state.source === 'synthetic';
+  var banner = el('div', { className: 'source-banner ' + (isSynthetic ? 'synthetic' : 'real') });
+  var srcLabel = el('div', null,
+    el('span', { className: 'source-label' }, 'Source: '),
+    el('span', { style: { color: isSynthetic ? 'var(--banner-synthetic-text)' : 'var(--banner-real-text)' } },
+      isSynthetic ? 'Loading data\u2026' : state.source)
+  );
+  banner.appendChild(srcLabel);
+  main.appendChild(banner);
+
+  // -- Headline --
+  var headline = el('div', { className: 'headline-block' });
+  headline.id = 'headline';
+  headline.appendChild(el('h1', null, 'The Ground Beneath Their Feet'));
+  // Build league names and date range from data
+  var leagueNames = leagues.map(function(l) { return l.name; }).join(', ');
+  var dates = filtered.map(function(i) { return i.date; }).filter(Boolean).sort();
+  var dateRange = dates.length > 0 ? dates[0] + ' \u2013 ' + dates[dates.length - 1] : '';
+
+  headline.appendChild(el('p', { className: 'dek' }, 'How field surface shapes injury risk across professional football. An analysis of ' + state.injuries.length.toLocaleString() + ' injuries across ' + leagues.length + ' leagues: ' + leagueNames + '.'));
+  headline.appendChild(el('div', { className: 'byline' }, (dateRange ? dateRange + ' \u00b7 ' : '') + 'Data Visualization & Analysis'));
+  main.appendChild(headline);
+  headlineEl = headline;
+
+  // -- Key Findings --
+  var findings = el('div', { className: 'findings-grid' });
+  var f1 = el('div', { className: 'finding-card' });
+  f1.appendChild(el('div', { className: 'finding-value' }, total.toLocaleString()));
+  f1.appendChild(el('div', { className: 'finding-label' }, 'Total Injuries'));
+  findings.appendChild(f1);
+
+  var f2 = el('div', { className: 'finding-card' });
+  f2.appendChild(el('div', { className: 'finding-value accent' }, vsGrassRate));
+  f2.appendChild(el('div', { className: 'finding-label' }, worstSurface + ' vs Grass'));
+  findings.appendChild(f2);
+
+  var f3 = el('div', { className: 'finding-card' });
+  f3.appendChild(el('div', { className: 'finding-value accent' }, disparityText));
+  f3.appendChild(el('div', { className: 'finding-label' }, (disparity.type || 'Injury') + ' Rate'));
+  findings.appendChild(f3);
+
+  main.appendChild(findings);
+
+  // -- Empty state check --
+  if (filtered.length === 0) {
+    var empty = el('div', { className: 'empty-state' });
+    empty.appendChild(el('h3', null, 'No matching injuries'));
+    empty.appendChild(el('p', null, 'Try adjusting your filters to see results.'));
+    empty.appendChild(el('button', {
+      onClick: function() { state.filters = { league: 'all', team: 'all', surface: 'all', context: 'all', search: '' }; render(); }
+    }, 'Reset all filters'));
+    main.appendChild(empty);
+    main.appendChild(renderFooter());
+    setupScrollObserver();
+    return;
+  }
+
+  // -- Narrative sections (added in Tasks 4-7) --
+  renderHeroChart(main, filtered);
+  renderPerTeamRate(main, filtered);
+  renderPerGameRate(main, filtered);
+  renderCallout(main, filtered, disparity);
+  renderInjuryTypes(main, filtered, surfaces);
+  renderTeamRankings(main, filtered);
+  renderPlayerLog(main, filtered);
+
+  main.appendChild(renderFooter());
+  setupScrollObserver();
+}
+
+function renderFooter() {
+  var footer = el('footer', { className: 'site-footer' });
+  footer.appendChild(el('h3', null, 'About This Data'));
+  var text = 'Data from ' + state.source + '. ' + state.injuries.length.toLocaleString() + ' injury records across ' + getLeagues().length + ' leagues. Surface types sourced from DBpedia and manual research of stadium specifications. Severity assigned heuristically from injury descriptions. Pipeline and source code available on GitHub.';
+  footer.appendChild(el('p', null, text));
+  return footer;
+}
+
+function setupScrollObserver() {
+  var bar = document.getElementById('filter-bar');
+  var target = document.getElementById('headline');
+  if (!bar || !target) return;
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        bar.classList.remove('visible');
+      } else {
+        bar.classList.add('visible');
+      }
+    });
+  }, { threshold: 0 });
+  observer.observe(target);
+}
+
+function renderHeroChart(container, filtered) {
+  var section = el('section', { className: 'narrative-section', 'aria-label': 'Injuries by field surface' });
+  section.setAttribute('role', 'img');
+  section.setAttribute('aria-label', 'Bar chart showing injury count by field surface type');
+  section.appendChild(el('h2', null, 'Injuries by Field Surface'));
+  section.appendChild(el('div', { className: 'section-intro' }, 'Total count across all leagues.'));
+
+  var bySurface = aggregate(filtered, 'surface');
+  var total = filtered.length || 1;
+  var maxCount = bySurface.length > 0 ? bySurface[0].count : 1;
+  var topSurface = bySurface.length > 0 ? bySurface[0].label : '';
+  var isFirst = true;
+
+  bySurface.forEach(function(s) {
+    var isTop = (s.label === topSurface);
+    var barColor = isTop ? 'var(--accent)' : 'var(--neutral-bar)';
+    var labelColor = isTop ? 'var(--accent)' : 'var(--neutral-600)';
+
+    var group = el('div', { className: 'hero-surface-group' });
+
+    var row = el('div', { className: 'hero-bar-row' });
+    row.appendChild(el('div', { className: 'hero-bar-label', style: { color: labelColor, fontWeight: isTop ? '700' : '600' } }, s.label));
+    var track = el('div', { className: 'hero-bar-track' });
+    track.appendChild(el('div', { className: 'hero-bar-fill', style: { width: ((s.count / maxCount) * 100) + '%', background: barColor } }));
+    row.appendChild(track);
+    row.appendChild(el('span', { className: 'hero-bar-value' }, String(s.count)));
+    group.appendChild(row);
+
+    section.appendChild(group);
+
+    // Annotation on top surface
+    if (isTop) {
+      var pct = ((s.count / total) * 100).toFixed(0);
+      section.appendChild(el('div', { className: 'hero-annotation' }, '\u25b2 ' + s.label + ' accounts for ' + pct + '% of all injuries'));
+    }
+
+    isFirst = false;
+  });
+
+  section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io)'));
+  container.appendChild(section);
+}
+
+function renderPerTeamRate(container, filtered) {
+  var section = el('section', { className: 'narrative-section' });
+  section.setAttribute('role', 'img');
+  section.setAttribute('aria-label', 'Bar chart showing average injuries per team by surface type');
+  section.appendChild(el('h2', { style: { fontSize: '18px' } }, 'Adjusted for Team Count'));
+  section.appendChild(el('div', { className: 'section-intro' }, 'Average injuries per team on each surface type.'));
+
+  var rates = getPerTeamRate(filtered);
+  var maxRate = rates.length > 0 ? rates[0].rate : 1;
+  var topSurface = rates.length > 0 ? rates[0].label : '';
+
+  rates.forEach(function(r) {
+    var isTop = (r.label === topSurface);
+    var row = el('div', { className: 'rate-bar-row' });
+    row.appendChild(el('div', { className: 'rate-bar-label', style: { color: isTop ? 'var(--accent)' : 'var(--neutral-600)', fontWeight: isTop ? '700' : '600' } }, r.label));
+    var track = el('div', { className: 'rate-bar-track' });
+    track.appendChild(el('div', { className: 'rate-bar-fill', style: { width: ((r.rate / maxRate) * 100) + '%', background: isTop ? 'var(--accent)' : 'var(--neutral-bar)', borderRadius: '1px' } }));
+    row.appendChild(track);
+    row.appendChild(el('span', { className: 'rate-bar-value' }, r.rate.toFixed(1)));
+    section.appendChild(row);
+  });
+
+  container.appendChild(section);
+}
+
+function renderPerGameRate(container, filtered) {
+  if (!state.gamesBySurface) return;
+
+  var section = el('section', { className: 'narrative-section' });
+  section.setAttribute('role', 'img');
+  section.setAttribute('aria-label', 'Bar chart showing injuries per game by surface type');
+  section.appendChild(el('h2', { style: { fontSize: '18px' } }, 'Injuries per Game'));
+  section.appendChild(el('div', { className: 'section-intro' }, 'Injury rate normalized by number of games played on each surface. Accounts for the fact that some surfaces host fewer matches.'));
+
+  var injBySurface = {};
+  filtered.forEach(function(i) {
+    injBySurface[i.surface] = (injBySurface[i.surface] || 0) + 1;
+  });
+
+  var rates = Object.keys(state.gamesBySurface).map(function(s) {
+    var games = state.gamesBySurface[s] || 0;
+    var injuries = injBySurface[s] || 0;
+    var rate = games > 0 ? injuries / games : 0;
+    return { label: s, injuries: injuries, games: games, rate: rate };
+  }).filter(function(r) { return r.games > 0; }).sort(function(a, b) { return b.rate - a.rate; });
+
+  if (rates.length === 0) return;
+
+  var maxRate = rates[0].rate;
+  var topSurface = rates[0].label;
+
+  rates.forEach(function(r) {
+    var isTop = (r.label === topSurface);
+    var row = el('div', { className: 'rate-bar-row' });
+    row.appendChild(el('div', { className: 'rate-bar-label', style: { color: isTop ? 'var(--accent)' : 'var(--neutral-600)', fontWeight: isTop ? '700' : '600' } }, r.label));
+    var track = el('div', { className: 'rate-bar-track' });
+    track.appendChild(el('div', { className: 'rate-bar-fill', style: { width: ((r.rate / maxRate) * 100) + '%', background: isTop ? 'var(--accent)' : 'var(--neutral-bar)', borderRadius: '1px' } }));
+    row.appendChild(track);
+    row.appendChild(el('span', { className: 'rate-bar-value' }, r.rate.toFixed(2) + ' (' + r.injuries + ' in ' + r.games + ' games)'));
+    section.appendChild(row);
+  });
+
+  section.appendChild(el('div', { className: 'source-attr' }, 'Rate = injuries / games played on that surface'));
+  container.appendChild(section);
+}
+
+function renderCallout(container, filtered, disparity) {
+  if (disparity.ratio <= 0) return;
+  var topSurface = getWorstSurface(filtered);
+  var callout = el('div', { className: 'callout' });
+  callout.appendChild(el('div', { className: 'callout-number' }, disparity.ratio.toFixed(1) + 'x'));
+  callout.appendChild(el('div', { className: 'callout-text' }, disparity.type + ' injuries occur at ' + disparity.ratio.toFixed(1) + ' times the rate on ' + topSurface.toLowerCase() + ' compared to natural grass (' + disparity.worstCount + ' vs ' + disparity.grassCount + ').'));
+  container.appendChild(callout);
+}
+
+function renderInjuryTypes(container, filtered, surfaces) {
+  var section = el('section', { className: 'narrative-section' });
+  section.setAttribute('role', 'img');
+  section.setAttribute('aria-label', 'Top injury types broken down by surface');
+  section.appendChild(el('h2', null, 'Top Injuries by Surface'));
+
+  // Determine which surface has the most injuries in this section
+  var surfaceTotals = aggregate(filtered, 'surface');
+  var topSurface = surfaceTotals.length > 0 ? surfaceTotals[0].label : '';
+  section.appendChild(el('div', { className: 'section-intro' }, 'Common scale across surfaces. Highlighted: ' + topSurface + ' (most injuries).'));
+
+  // Find global max across all surface/injury combos for common scale
+  var globalMax = 0;
+  surfaces.forEach(function(s) {
+    var si = filtered.filter(function(i) { return i.surface === s; });
+    var typeMap = {};
+    si.forEach(function(i) { typeMap[i.injuryType] = (typeMap[i.injuryType] || 0) + 1; });
+    Object.values(typeMap).forEach(function(c) { if (c > globalMax) globalMax = c; });
+  });
+  if (globalMax === 0) globalMax = 1;
+
+  surfaces.forEach(function(s) {
+    var si = filtered.filter(function(i) { return i.surface === s; });
+    if (si.length === 0) return;
+    var typeMap = {};
+    si.forEach(function(i) { typeMap[i.injuryType] = (typeMap[i.injuryType] || 0) + 1; });
+    var sorted = Object.entries(typeMap).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 5);
+
+    var isTop = (s === topSurface);
+    var group = el('div', { className: 'injury-surface-group' });
+    group.appendChild(el('div', { className: 'injury-surface-label', style: { color: isTop ? 'var(--accent)' : 'var(--neutral-600)' } }, s));
+
+    sorted.forEach(function(entry) {
+      var type = entry[0], count = entry[1];
+      var row = el('div', { className: 'injury-bar-row' });
+      row.appendChild(el('div', { className: 'injury-bar-label' }, type));
+      var track = el('div', { className: 'injury-bar-track' });
+      track.appendChild(el('div', { className: 'injury-bar-fill', style: { width: ((count / globalMax) * 100) + '%', background: isTop ? 'var(--accent)' : 'var(--neutral-bar)' } }));
+      row.appendChild(track);
+      row.appendChild(el('div', { className: 'injury-bar-value' }, String(count)));
+      group.appendChild(row);
+    });
+
+    section.appendChild(group);
+  });
+
+  container.appendChild(section);
+}
+function renderTeamRankings(container, filtered) {
+  var section = el('section', { className: 'narrative-section' });
+  section.appendChild(el('h2', null, 'Most Injured Teams'));
+  section.appendChild(el('div', { className: 'section-intro' }, 'Top 20 by total injury count.'));
+
+  var teamMap = {};
+  filtered.forEach(function(i) {
+    if (!teamMap[i.team]) teamMap[i.team] = { team: i.team, league: i.league, count: 0, surface: i.teamSurface };
+    teamMap[i.team].count++;
+  });
+  var sorted = Object.values(teamMap).sort(function(a, b) { return b.count - a.count; });
+
+  // Highlight the surface of the #1 team
+  var topTeamSurface = sorted.length > 0 ? sorted[0].surface : '';
+
+  sorted.slice(0, 20).forEach(function(t, i) {
+    var row = el('div', { className: 'team-row' });
+    row.appendChild(el('div', { className: 'team-rank' }, String(i + 1)));
+
+    var nameWrap = el('div', { style: { flex: '1' } });
+    var nameSpan = el('span', { className: 'team-name' }, t.team);
+    nameWrap.appendChild(nameSpan);
+
+    var isTop = (t.surface === topTeamSurface);
+    var tag = el('span', { className: 'team-surface-tag ' + (isTop ? 'accent' : 'neutral') });
+    if (isTop) {
+      tag.appendChild(document.createTextNode('\u25cf '));
+    }
+    tag.appendChild(document.createTextNode(t.surface));
+    nameWrap.appendChild(tag);
+    row.appendChild(nameWrap);
+
+    row.appendChild(el('div', { className: 'team-league' }, t.league));
+    row.appendChild(el('div', { className: 'team-count' }, String(t.count)));
+    section.appendChild(row);
+  });
+
+  section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io)'));
+  container.appendChild(section);
+}
+function renderPlayerLog(container, filtered) {
+  var topSurface = getWorstSurface(filtered);
+  var section = el('section', { className: 'narrative-section' });
+  section.appendChild(el('h2', null, 'Player Injury Log'));
+  section.appendChild(el('div', { className: 'section-intro' }, 'Players with the most injuries.'));
+
+  var searchInput = el('input', { className: 'search-input', type: 'text', placeholder: 'Search player\u2026', 'aria-label': 'Search players by name' });
+  searchInput.value = state.filters.search;
+  searchInput.addEventListener('input', function(e) { state.filters.search = e.target.value; render(); });
+  section.appendChild(searchInput);
+
+  var playerMap = {};
+  filtered.forEach(function(i) {
+    var k = i.player + '|' + i.team;
+    if (!playerMap[k]) playerMap[k] = { player: i.player, team: i.team, league: i.league, count: 0, injuries: [] };
+    playerMap[k].count++;
+    playerMap[k].injuries.push(i);
+  });
+  var sorted = Object.values(playerMap).sort(function(a, b) { return b.count - a.count; });
+
+  var listWrap = el('div', { style: { marginTop: '16px' } });
+
+  sorted.slice(0, 30).forEach(function(p) {
+    var entry = el('div', { className: 'player-entry' });
+
+    var header = el('div', { className: 'player-header' });
+    var left = el('div');
+    left.appendChild(el('span', { className: 'player-name' }, p.player));
+    left.appendChild(el('span', { className: 'player-team' }, p.team + ' \u00b7 ' + p.league));
+    header.appendChild(left);
+    header.appendChild(el('div', { className: 'player-count' }, String(p.count)));
+    entry.appendChild(header);
+
+    var injDiv = el('div', { className: 'player-injuries' });
+    var maxShow = 3;
+    p.injuries.slice(0, maxShow).forEach(function(x) {
+      var line = el('div', { className: 'player-injury-line' });
+
+      var isWorstSurface = (x.surface === topSurface);
+      var bullet = el('span', { className: isWorstSurface ? 'accent-bullet' : '' }, '\u25cf ');
+      if (!isWorstSurface) bullet.style.color = 'var(--neutral-400)';
+      line.appendChild(bullet);
+
+      var text = x.injuryType + ' \u2014 ' + x.surface + ', ' + x.context + ' \u2014 ';
+      line.appendChild(document.createTextNode(text));
+
+      if (x.severity === 'Severe') {
+        line.appendChild(el('span', { className: 'severe' }, 'Severe'));
+      } else {
+        line.appendChild(document.createTextNode(x.severity));
+      }
+
+      if (x.daysOut > 0) line.appendChild(document.createTextNode(', ' + x.daysOut + 'd'));
+      if (x.date) line.appendChild(document.createTextNode(' \u00b7 ' + x.date));
+      injDiv.appendChild(line);
+    });
+
+    if (p.injuries.length > maxShow) {
+      injDiv.appendChild(el('div', { className: 'player-more' }, '... ' + (p.injuries.length - maxShow) + ' more'));
+    }
+
+    entry.appendChild(injDiv);
+    listWrap.appendChild(entry);
+  });
+
+  section.appendChild(listWrap);
+  section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io)'));
+  container.appendChild(section);
+}
+
+// -- Auto-load data from JSON file --
+function loadFromURL(url) {
+  fetch(url).then(function(resp) {
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp.json();
+  }).then(function(j) {
+    var arr = j.injuries || j;
+    if (Array.isArray(arr) && arr.length > 0) {
+      state.injuries = arr.map(function(x, i) {
+        return {
+          id: x.id != null ? x.id : i, player: x.player || 'Unknown', team: x.team || 'Unknown',
+          league: x.league || 'Unknown', leagueId: x.leagueId || x.league_id || 'unknown',
+          surface: x.surface || 'Unknown', teamSurface: x.teamSurface || x.team_surface || x.surface || 'Unknown',
+          context: x.context || x.field_context || 'Game Field',
+          injuryType: x.injuryType || x.injury_type || x.injury_reason || 'Unknown',
+          severity: x.severity || 'Unknown', daysOut: x.daysOut || x.days_out || 0,
+          date: x.date || '', city: x.city || '',
+          homeAway: x.homeAway || '', opponentTeam: x.opponentTeam || '',
+        };
+      });
+      state.source = 'API-Football (api-sports.io)';
+      state.gamesBySurface = (j.metadata && j.metadata.games_by_surface) ? j.metadata.games_by_surface : null;
+      state.filters = { league: 'all', team: 'all', surface: 'all', context: 'all', search: '' };
+    }
+    render();
+  }).catch(function() {
+    // Fall back to synthetic data if fetch fails
+    render();
+  });
+}
+
+// -- Initialize — try real data first, fall back to synthetic --
+render(); // show synthetic immediately
+loadFromURL('data.json');
+</script>
+</body>
+</html>
