@@ -325,7 +325,7 @@ function getFiltered() {
   if (f.team !== 'all') d = d.filter(function(i) { return i.team === f.team; });
   if (f.surface !== 'all') d = d.filter(function(i) { return i.surface === f.surface; });
   if (f.context !== 'all') d = d.filter(function(i) { return i.context === f.context; });
-  if (f.search) d = d.filter(function(i) { return i.player.toLowerCase().includes(f.search.toLowerCase()); });
+  // Note: player search is handled locally in renderPlayerLog, not here
   return d;
 }
 
@@ -620,7 +620,7 @@ function render() {
 function renderFooter() {
   var footer = el('footer', { className: 'site-footer' });
   footer.appendChild(el('h3', null, 'About This Data'));
-  var text = 'Data from ' + state.source + '. ' + state.injuries.length.toLocaleString() + ' injury records across ' + getLeagues().length + ' leagues. Surface types sourced from DBpedia and manual research of stadium specifications. Severity assigned heuristically from injury descriptions. Pipeline and source code available on GitHub.';
+  var text = 'Data from ' + state.source + '. ' + state.injuries.length.toLocaleString() + ' distinct injury events across ' + getLeagues().length + ' leagues. Surface types sourced from DBpedia and manual research. Repeated fixture reports collapsed into single injury events. Pipeline and source code available on GitHub.';
   footer.appendChild(el('p', null, text));
   return footer;
 }
@@ -847,19 +847,20 @@ function renderTeamRankings(container, filtered) {
   section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io)'));
   container.appendChild(section);
 }
-function renderPlayerLog(container, filtered) {
-  var topSurface = getWorstSurface(filtered);
-  var section = el('section', { className: 'narrative-section' });
-  section.appendChild(el('h2', null, 'Player Injury Log'));
-  section.appendChild(el('div', { className: 'section-intro' }, 'Players with the most injuries.'));
+function buildPlayerList(listWrap, filtered, searchTerm) {
+  while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
 
-  var searchInput = el('input', { className: 'search-input', type: 'text', placeholder: 'Search player\u2026', 'aria-label': 'Search players by name' });
-  searchInput.value = state.filters.search;
-  searchInput.addEventListener('input', function(e) { state.filters.search = e.target.value; render(); });
-  section.appendChild(searchInput);
+  var topSurface = getWorstSurface(filtered);
+
+  // Filter by search
+  var searchFiltered = filtered;
+  if (searchTerm) {
+    var lower = searchTerm.toLowerCase();
+    searchFiltered = filtered.filter(function(i) { return i.player.toLowerCase().includes(lower); });
+  }
 
   var playerMap = {};
-  filtered.forEach(function(i) {
+  searchFiltered.forEach(function(i) {
     var k = i.player + '|' + i.team;
     if (!playerMap[k]) playerMap[k] = { player: i.player, team: i.team, league: i.league, count: 0, injuries: [] };
     playerMap[k].count++;
@@ -867,7 +868,11 @@ function renderPlayerLog(container, filtered) {
   });
   var sorted = Object.values(playerMap).sort(function(a, b) { return b.count - a.count; });
 
-  var listWrap = el('div', { style: { marginTop: '16px' } });
+  if (sorted.length === 0) {
+    var empty = el('div', { style: { padding: '24px 0', color: 'var(--neutral-600)', fontSize: '14px' } }, 'No players match "' + searchTerm + '"');
+    listWrap.appendChild(empty);
+    return;
+  }
 
   sorted.slice(0, 30).forEach(function(p) {
     var entry = el('div', { className: 'player-entry' });
@@ -911,6 +916,25 @@ function renderPlayerLog(container, filtered) {
     entry.appendChild(injDiv);
     listWrap.appendChild(entry);
   });
+}
+
+function renderPlayerLog(container, filtered) {
+  var section = el('section', { className: 'narrative-section' });
+  section.appendChild(el('h2', null, 'Player Injury Log'));
+  section.appendChild(el('div', { className: 'section-intro' }, 'Players with the most injuries.'));
+
+  var listWrap = el('div', { style: { marginTop: '16px' } });
+
+  var searchInput = el('input', { className: 'search-input', type: 'text', placeholder: 'Search player\u2026', 'aria-label': 'Search players by name' });
+  searchInput.value = state.filters.search;
+  // Only rebuild the player list, not the whole page
+  searchInput.addEventListener('input', function(e) {
+    state.filters.search = e.target.value;
+    buildPlayerList(listWrap, filtered, e.target.value);
+  });
+  section.appendChild(searchInput);
+
+  buildPlayerList(listWrap, filtered, state.filters.search);
 
   section.appendChild(listWrap);
   section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io)'));
@@ -943,13 +967,12 @@ function loadFromURL(url) {
     }
     render();
   }).catch(function() {
-    // Fall back to synthetic data if fetch fails
     render();
   });
 }
 
-// -- Initialize — try real data first, fall back to synthetic --
-render(); // show synthetic immediately
+// -- Initialize --
+render();
 loadFromURL('data.json');
 </script>
 </body>
