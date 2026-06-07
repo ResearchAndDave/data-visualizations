@@ -1,0 +1,19 @@
+README.md
+  s_6e5b67e4bede4e::t_2aedadfcd9df73 1-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "af8c93c45aea2db6c491de3342aa614edb9ee801",
+  "prompts": {},
+  "sessions": {
+    "s_6e5b67e4bede4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "085b45c4-306a-4d34-8783-479bbba563e9",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "David Hodge <dave@proteanfalcon.com>"
+    }
+  }
+}
