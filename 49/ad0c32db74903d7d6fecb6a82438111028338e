@@ -1,0 +1,19 @@
+football-injuries/index.html
+  s_6e5b67e4bede4e::t_83f2968fe84ee2 627
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "49ad0c32db74903d7d6fecb6a82438111028338e",
+  "prompts": {},
+  "sessions": {
+    "s_6e5b67e4bede4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "085b45c4-306a-4d34-8783-479bbba563e9",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "David Hodge <dave@proteanfalcon.com>"
+    }
+  }
+}
