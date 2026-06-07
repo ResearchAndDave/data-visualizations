@@ -384,12 +384,22 @@ function getPerTeamRate(data) {
   }).sort(function(a, b) { return b.rate - a.rate; });
 }
 
+var LOWER_BODY_KEYWORDS = ['knee', 'hamstring', 'ankle', 'calf', 'thigh', 'groin', 'leg', 'achilles', 'hip', 'foot', 'muscle', 'cruciate', 'acl', 'quad', 'shin', 'metatarsal'];
+
+function isLowerBodyInjury(type) {
+  var lower = type.toLowerCase();
+  return LOWER_BODY_KEYWORDS.some(function(kw) { return lower.indexOf(kw) !== -1; });
+}
+
 function getInjuryTypeDisparity(data, worstSurface) {
+  // Compare injury rates on the worst surface vs grass,
+  // only considering lower-body injuries (field-surface relevant)
   var worstTypes = {};
   var grassTypes = {};
   var worstTotal = 0;
   var grassTotal = 0;
   data.forEach(function(i) {
+    if (!isLowerBodyInjury(i.injuryType)) return;
     if (i.surface === worstSurface) {
       worstTypes[i.injuryType] = (worstTypes[i.injuryType] || 0) + 1;
       worstTotal++;
@@ -398,17 +408,37 @@ function getInjuryTypeDisparity(data, worstSurface) {
       grassTotal++;
     }
   });
-  var bestDisparity = { type: '', ratio: 0 };
-  Object.keys(worstTypes).forEach(function(type) {
-    var worstRate = worstTypes[type] / (worstTotal || 1);
-    var grassRate = (grassTypes[type] || 0) / (grassTotal || 1);
-    if (grassRate > 0) {
-      var ratio = worstRate / grassRate;
-      if (ratio > bestDisparity.ratio) {
-        bestDisparity = { type: type, ratio: ratio, worstCount: worstTypes[type], grassCount: grassTypes[type] || 0 };
-      }
-    }
+  var bestDisparity = { type: '', ratio: 0, worstCount: 0, grassCount: 0, surface: worstSurface };
+
+  // Also check across all non-grass surfaces to find the strongest signal
+  var surfaceTypes = {};
+  var surfaceTotals = {};
+  data.forEach(function(i) {
+    if (!isLowerBodyInjury(i.injuryType)) return;
+    if (i.surface === 'Grass' || i.surface === 'Unknown') return;
+    var s = i.surface;
+    if (!surfaceTypes[s]) { surfaceTypes[s] = {}; surfaceTotals[s] = 0; }
+    surfaceTypes[s][i.injuryType] = (surfaceTypes[s][i.injuryType] || 0) + 1;
+    surfaceTotals[s]++;
   });
+
+  // Find the best disparity across any surface vs grass, with minimum 5 occurrences
+  Object.keys(surfaceTypes).forEach(function(s) {
+    Object.keys(surfaceTypes[s]).forEach(function(type) {
+      var sCount = surfaceTypes[s][type];
+      if (sCount < 5) return; // need meaningful sample
+      var sRate = sCount / (surfaceTotals[s] || 1);
+      var gCount = grassTypes[type] || 0;
+      var gRate = gCount / (grassTotal || 1);
+      if (gRate > 0) {
+        var ratio = sRate / gRate;
+        if (ratio > bestDisparity.ratio) {
+          bestDisparity = { type: type, ratio: ratio, worstCount: sCount, grassCount: gCount, surface: s };
+        }
+      }
+    });
+  });
+
   return bestDisparity;
 }
 
@@ -554,7 +584,7 @@ function render() {
     el('span', { className: 'source-label' }, 'Source: '),
     el('span', { style: { color: isSynthetic ? 'var(--banner-synthetic-text)' : 'var(--banner-real-text)' } },
       isSynthetic ? 'Loading data\u2026' : state.source)
-  );
+  )
   banner.appendChild(srcLabel);
   main.appendChild(banner);
 
@@ -588,8 +618,9 @@ function render() {
 
   var f3 = el('div', { className: 'finding-card' });
   f3.appendChild(el('div', { className: 'finding-value accent' }, disparityText));
+  var disparitySurface = disparity.surface || worstSurface;
   f3.appendChild(el('div', { className: 'finding-label' }, (disparity.type || 'Injury') + ' Disparity'));
-  f3.appendChild(el('div', { className: 'finding-desc' }, (disparity.type || 'This injury') + ' occurs ' + disparityText + ' more often on ' + worstSurface.toLowerCase() + ' than on grass'));
+  f3.appendChild(el('div', { className: 'finding-desc' }, (disparity.type || 'This injury') + ' occurs ' + disparityText + ' more often on ' + disparitySurface.toLowerCase() + ' than on grass (' + disparity.worstCount + ' vs ' + disparity.grassCount + ')'));
   findings.appendChild(f3);
 
   main.appendChild(findings);
@@ -759,7 +790,8 @@ function renderCallout(container, filtered, disparity) {
   var topSurface = getWorstSurface(filtered);
   var callout = el('div', { className: 'callout' });
   callout.appendChild(el('div', { className: 'callout-number' }, disparity.ratio.toFixed(1) + 'x'));
-  callout.appendChild(el('div', { className: 'callout-text' }, disparity.type + ' injuries occur at ' + disparity.ratio.toFixed(1) + ' times the rate on ' + topSurface.toLowerCase() + ' compared to natural grass (' + disparity.worstCount + ' vs ' + disparity.grassCount + ').'));
+  var calloutSurface = disparity.surface || topSurface;
+  callout.appendChild(el('div', { className: 'callout-text' }, disparity.type + ' injuries occur at ' + disparity.ratio.toFixed(1) + ' times the rate on ' + calloutSurface.toLowerCase() + ' fields compared to natural grass (' + disparity.worstCount + ' on ' + calloutSurface.toLowerCase() + ' vs ' + disparity.grassCount + ' on grass).'));
   container.appendChild(callout);
 }
 
