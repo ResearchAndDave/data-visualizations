@@ -80,6 +80,7 @@ h3 { font-size: 18px; font-weight: 700; line-height: 1.2; }
 .finding-value { font-size: 24px; font-weight: 700; line-height: 1.1; }
 .finding-value.accent { color: var(--accent); }
 .finding-label { font-size: 12px; color: var(--neutral-600); margin-top: 4px; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; text-transform: uppercase; letter-spacing: 1px; line-height: 1; }
+.finding-desc { font-size: 12px; color: var(--neutral-400); margin-top: 4px; line-height: 1.5; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; text-transform: none; letter-spacing: 0; }
 
 /* -- Section -- */
 .narrative-section { padding: 32px 0; border-top: 1px solid var(--border-light); }
@@ -575,17 +576,20 @@ function render() {
   var findings = el('div', { className: 'findings-grid' });
   var f1 = el('div', { className: 'finding-card' });
   f1.appendChild(el('div', { className: 'finding-value' }, total.toLocaleString()));
-  f1.appendChild(el('div', { className: 'finding-label' }, 'Total Injuries'));
+  f1.appendChild(el('div', { className: 'finding-label' }, 'Distinct Injuries'));
+  f1.appendChild(el('div', { className: 'finding-desc' }, 'Unique injury events across all leagues after removing duplicates and non-injury reports'));
   findings.appendChild(f1);
 
   var f2 = el('div', { className: 'finding-card' });
   f2.appendChild(el('div', { className: 'finding-value accent' }, vsGrassRate));
   f2.appendChild(el('div', { className: 'finding-label' }, worstSurface + ' vs Grass'));
+  f2.appendChild(el('div', { className: 'finding-desc' }, worstSurface + ' fields have ' + vsGrassRate + ' more injuries than natural grass fields'));
   findings.appendChild(f2);
 
   var f3 = el('div', { className: 'finding-card' });
   f3.appendChild(el('div', { className: 'finding-value accent' }, disparityText));
-  f3.appendChild(el('div', { className: 'finding-label' }, (disparity.type || 'Injury') + ' Rate'));
+  f3.appendChild(el('div', { className: 'finding-label' }, (disparity.type || 'Injury') + ' Disparity'));
+  f3.appendChild(el('div', { className: 'finding-desc' }, (disparity.type || 'This injury') + ' occurs ' + disparityText + ' more often on ' + worstSurface.toLowerCase() + ' than on grass'));
   findings.appendChild(f3);
 
   main.appendChild(findings);
@@ -620,7 +624,7 @@ function render() {
 function renderFooter() {
   var footer = el('footer', { className: 'site-footer' });
   footer.appendChild(el('h3', null, 'About This Data'));
-  var text = 'Data from ' + state.source + '. ' + state.injuries.length.toLocaleString() + ' distinct injury events across ' + getLeagues().length + ' leagues. Surface types sourced from DBpedia and manual research. Repeated fixture reports collapsed into single injury events. Pipeline and source code available on GitHub.';
+  var text = 'Data from ' + state.source + '. ' + state.injuries.length.toLocaleString() + ' distinct injury events across ' + getLeagues().length + ' leagues. Repeated fixture reports collapsed into single injury events. Surface types sourced from DBpedia and manual stadium research. Pipeline and source code available on GitHub.';
   footer.appendChild(el('p', null, text));
   return footer;
 }
