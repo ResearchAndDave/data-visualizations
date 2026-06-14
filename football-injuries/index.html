@@ -115,7 +115,7 @@ h3 { font-size: 18px; font-weight: 700; line-height: 1.2; }
 .injury-bar-label { width: 96px; text-align: right; font-size: 12px; color: var(--neutral-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.5; flex-shrink: 0; }
 .injury-bar-track { flex: 1; height: 8px; position: relative; }
 .injury-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; }
-.injury-bar-value { font-family: monospace; font-size: 12px; font-weight: 600; width: 24px; text-align: right; line-height: 1; }
+.injury-bar-value { font-family: monospace; font-size: 12px; font-weight: 600; width: 32px; text-align: right; line-height: 1; white-space: nowrap; flex-shrink: 0; }
 
 /* -- Team Row -- */
 .team-row { display: flex; align-items: baseline; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border-light); }
@@ -795,47 +795,56 @@ function renderCallout(container, filtered) {
 function renderInjuryTypes(container, filtered, surfaces) {
   var section = el('section', { className: 'narrative-section' });
   section.setAttribute('role', 'img');
-  section.setAttribute('aria-label', 'Top injury types broken down by surface');
-  section.appendChild(el('h2', null, 'Top Injuries by Surface'));
+  section.setAttribute('aria-label', 'Injury type mix as a share of each surface');
+  section.appendChild(el('h2', null, 'Injury Mix by Surface'));
 
-  section.appendChild(el('div', { className: 'section-intro' }, 'Most common injury types within each surface, on a common scale. Bar lengths reflect raw counts, so longer bars on high-volume surfaces (e.g. hybrid) mostly reflect more games played, not higher risk.'));
+  section.appendChild(el('div', { className: 'section-intro' }, 'Each injury type as a share of that surface’s own injuries — so volume differences are removed. The same types in the same order appear for every surface: the bars line up, showing the mix barely changes by field.'));
 
-  // Find global max across all surface/injury combos for common scale
-  var globalMax = 0;
-  surfaces.forEach(function(s) {
-    var si = filtered.filter(function(i) { return i.surface === s; });
-    var typeMap = {};
-    si.forEach(function(i) { typeMap[i.injuryType] = (typeMap[i.injuryType] || 0) + 1; });
-    Object.values(typeMap).forEach(function(c) { if (c > globalMax) globalMax = c; });
-  });
-  if (globalMax === 0) globalMax = 1;
+  // Shared category set + order: the most common injury types across all surfaces.
+  var overall = {};
+  filtered.forEach(function(i) { overall[i.injuryType] = (overall[i.injuryType] || 0) + 1; });
+  var topTypes = Object.entries(overall).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 6).map(function(e) { return e[0]; });
 
+  // Per-surface share (% of that surface) for each shared type; common % scale across all.
+  var surfStats = {};
+  var maxPct = 0;
   surfaces.forEach(function(s) {
     var si = filtered.filter(function(i) { return i.surface === s; });
     if (si.length === 0) return;
-    var typeMap = {};
-    si.forEach(function(i) { typeMap[i.injuryType] = (typeMap[i.injuryType] || 0) + 1; });
-    var sorted = Object.entries(typeMap).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 5);
+    surfStats[s] = { total: si.length, pct: {} };
+    topTypes.forEach(function(t) {
+      var c = si.filter(function(i) { return i.injuryType === t; }).length;
+      var pct = c / si.length * 100;
+      surfStats[s].pct[t] = pct;
+      if (pct > maxPct) maxPct = pct;
+    });
+  });
+  if (maxPct === 0) maxPct = 1;
 
+  surfaces.forEach(function(s) {
+    if (!surfStats[s]) return;
+    var stat = surfStats[s];
     var group = el('div', { className: 'injury-surface-group' });
-    group.appendChild(el('div', { className: 'injury-surface-label', style: { color: 'var(--neutral-600)' } }, s));
+    group.appendChild(el('div', { className: 'injury-surface-label', style: { color: 'var(--neutral-600)' } },
+      s + ' — ' + stat.total.toLocaleString() + ' injuries'));
 
-    sorted.forEach(function(entry) {
-      var type = entry[0], count = entry[1];
+    topTypes.forEach(function(type) {
+      var pct = stat.pct[type] || 0;
       var isVague = (type === UNSPECIFIED_TYPE);
       var row = el('div', { className: 'injury-bar-row' });
       row.appendChild(el('div', { className: 'injury-bar-label', style: isVague ? { color: 'var(--neutral-600)', fontStyle: 'italic' } : null }, type));
       var track = el('div', { className: 'injury-bar-track' });
       var fillColor = isVague ? 'var(--neutral-bar-light)' : 'var(--neutral-bar)';
-      track.appendChild(el('div', { className: 'injury-bar-fill', style: { width: ((count / globalMax) * 100) + '%', background: fillColor } }));
+      track.appendChild(el('div', { className: 'injury-bar-fill', style: { width: ((pct / maxPct) * 100) + '%', background: fillColor } }));
       row.appendChild(track);
-      row.appendChild(el('div', { className: 'injury-bar-value', style: isVague ? { color: 'var(--neutral-600)' } : null }, String(count)));
+      row.appendChild(el('div', { className: 'injury-bar-value', style: isVague ? { color: 'var(--neutral-600)' } : null }, Math.round(pct) + '%'));
       group.appendChild(row);
     });
 
     section.appendChild(group);
   });
 
+  section.appendChild(el('div', { className: 'source-attr' }, 'Each bar = that injury type’s share of the surface’s injuries. Common scale across surfaces.'));
   container.appendChild(section);
 }
 function renderTeamRankings(container, filtered) {
