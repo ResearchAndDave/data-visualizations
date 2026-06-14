@@ -391,58 +391,61 @@ function isLowerBodyInjury(type) {
   return LOWER_BODY_KEYWORDS.some(function(kw) { return lower.indexOf(kw) !== -1; });
 }
 
-function getInjuryTypeDisparity(data, worstSurface) {
-  // Compare injury rates on the worst surface vs grass,
-  // only considering lower-body injuries (field-surface relevant)
-  var worstTypes = {};
-  var grassTypes = {};
-  var worstTotal = 0;
-  var grassTotal = 0;
-  data.forEach(function(i) {
-    if (!isLowerBodyInjury(i.injuryType)) return;
-    if (i.surface === worstSurface) {
-      worstTypes[i.injuryType] = (worstTypes[i.injuryType] || 0) + 1;
-      worstTotal++;
-    } else if (i.surface === 'Grass') {
-      grassTypes[i.injuryType] = (grassTypes[i.injuryType] || 0) + 1;
-      grassTotal++;
-    }
-  });
-  var bestDisparity = { type: '', ratio: 0, worstCount: 0, grassCount: 0, surface: worstSurface };
+// Generic placeholder labels carry no real detail — shown but de-emphasized.
+var UNSPECIFIED_TYPE = 'Unspecified';
 
-  // Also check across all non-grass surfaces to find the strongest signal
-  var surfaceTypes = {};
-  var surfaceTotals = {};
-  data.forEach(function(i) {
-    if (!isLowerBodyInjury(i.injuryType)) return;
-    if (i.surface === 'Grass' || i.surface === 'Unknown') return;
-    var s = i.surface;
-    if (!surfaceTypes[s]) { surfaceTypes[s] = {}; surfaceTotals[s] = 0; }
-    surfaceTypes[s][i.injuryType] = (surfaceTypes[s][i.injuryType] || 0) + 1;
-    surfaceTotals[s]++;
-  });
+// Map the source's 128 raw, inconsistent injury labels into a clean category set.
+// Returns null for illnesses/medical conditions (excluded from injury views).
+function normalizeInjuryType(raw) {
+  var t = (raw || '').toLowerCase().trim();
+  if (!t) return UNSPECIFIED_TYPE;
 
-  // Find the best disparity across any surface vs grass, with minimum 5 occurrences
-  Object.keys(surfaceTypes).forEach(function(s) {
-    Object.keys(surfaceTypes[s]).forEach(function(type) {
-      var sCount = surfaceTypes[s][type];
-      if (sCount < 5) return; // need meaningful sample
-      var sRate = sCount / (surfaceTotals[s] || 1);
-      var gCount = grassTypes[type] || 0;
-      var gRate = gCount / (grassTotal || 1);
-      if (gRate > 0) {
-        var ratio = sRate / gRate;
-        if (ratio > bestDisparity.ratio) {
-          bestDisparity = { type: type, ratio: ratio, worstCount: sCount, grassCount: gCount, surface: s };
-        }
-      }
-    });
-  });
+  // Illnesses / medical conditions — not injuries, drop them.
+  if (/illness|health problem|stomach|heart|appendic|disorder|doping|convalescence|inflammation/.test(t)) return null;
 
-  return bestDisparity;
+  // Junk placeholders — no usable detail.
+  if (/^injur(y|ed)$|doubtful|unknown|knock|^other$|^surgery$|operation|overload/.test(t)) return UNSPECIFIED_TYPE;
+
+  // Specific categories — order matters: bone/joint terms before muscle terms.
+  if (/cruciate|jumpers knee|\bknee\b|patell|ligament/.test(t)) return 'Knee Injury';
+  if (/ankle/.test(t)) return 'Ankle Injury';
+  if (/achilles/.test(t)) return 'Achilles Injury';
+  if (/calfbone|shinbone|shin|fibula|tibia|broken leg|\bleg\b/.test(t)) return 'Leg Injury';
+  if (/metatarsal|navicular|\bfoot\b|\btoe\b|heel/.test(t)) return 'Foot Injury';
+  // Muscle parent: thigh / hamstring / calf / groin / adductor / quad all roll up here.
+  if (/muscle|muscular|hamstring|thigh|\bcalf\b|groin|adductor|abductor|quad|pubalgia|contracture|abdominal|hip flexor|flexor|tendon/.test(t)) return 'Muscle Injury';
+  if (/pelvis|\bhip\b/.test(t)) return 'Hip Injury';
+  if (/collarbone|clavicle|shoulder/.test(t)) return 'Shoulder Injury';
+  if (/concussion|\bhead\b|face|eye|nose|tooth|\bneck\b|jaw|cheek/.test(t)) return 'Head/Neck Injury';
+  if (/\brib\b|ribs|chest|hernia/.test(t)) return 'Rib/Chest Injury';
+  if (/elbow|forearm|\barm\b|wrist|wirst|\bhand\b|finger|metacarpal/.test(t)) return 'Arm/Hand Injury';
+  if (/\bback\b/.test(t)) return 'Back Injury';
+  if (/lower-body|lower body/.test(t)) return 'Lower-Body (unspecified)';
+  if (/upper-body|upper body/.test(t)) return 'Upper-Body (unspecified)';
+  if (/wound|contusion|bruise|cut/.test(t)) return 'Bruise/Wound';
+
+  return raw; // unmatched: keep the original label
 }
 
 // -- File Loading --
+// Shared mapper: normalize raw labels into clean categories and drop illnesses.
+function mapInjuryRecords(arr) {
+  return arr.map(function(x, i) {
+    var normType = normalizeInjuryType(x.injuryType || x.injury_type || x.injury_reason || '');
+    if (normType === null) return null; // illness/medical condition — exclude
+    return {
+      id: x.id != null ? x.id : i, player: x.player || 'Unknown', team: x.team || 'Unknown',
+      league: x.league || 'Unknown', leagueId: x.leagueId || x.league_id || 'unknown',
+      surface: x.surface || 'Unknown', teamSurface: x.teamSurface || x.team_surface || x.surface || 'Unknown',
+      context: x.context || x.field_context || 'Game Field',
+      injuryType: normType,
+      severity: x.severity || 'Unknown', daysOut: x.daysOut || x.days_out || 0,
+      date: x.date || '', city: x.city || '',
+      homeAway: x.homeAway || '', opponentTeam: x.opponentTeam || '',
+    };
+  }).filter(Boolean);
+}
+
 function loadJSON(file) {
   var reader = new FileReader();
   reader.onload = function(e) {
@@ -450,18 +453,7 @@ function loadJSON(file) {
       var j = JSON.parse(e.target.result);
       var arr = j.injuries || j;
       if (Array.isArray(arr) && arr.length > 0) {
-        state.injuries = arr.map(function(x, i) {
-          return {
-            id: x.id != null ? x.id : i, player: x.player || 'Unknown', team: x.team || 'Unknown',
-            league: x.league || 'Unknown', leagueId: x.leagueId || x.league_id || 'unknown',
-            surface: x.surface || 'Unknown', teamSurface: x.teamSurface || x.team_surface || x.surface || 'Unknown',
-            context: x.context || x.field_context || 'Game Field',
-            injuryType: x.injuryType || x.injury_type || x.injury_reason || 'Unknown',
-            severity: x.severity || 'Unknown', daysOut: x.daysOut || x.days_out || 0,
-            date: x.date || '', city: x.city || '',
-            homeAway: x.homeAway || '', opponentTeam: x.opponentTeam || '',
-          };
-        });
+        state.injuries = mapInjuryRecords(arr);
         state.source = 'real - ' + (j.metadata && j.metadata.source ? j.metadata.source : file.name);
         state.gamesBySurface = (j.metadata && j.metadata.games_by_surface) ? j.metadata.games_by_surface : null;
         state.filters = { league: 'all', team: 'all', surface: 'all', context: 'all', search: '' };
@@ -474,6 +466,25 @@ function loadJSON(file) {
     }
   };
   reader.readAsText(file);
+}
+
+// Auto-load data bundled alongside the page (used by the deployed build).
+function loadFromURL(url) {
+  fetch(url).then(function(resp) {
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp.json();
+  }).then(function(j) {
+    var arr = j.injuries || j;
+    if (Array.isArray(arr) && arr.length > 0) {
+      state.injuries = mapInjuryRecords(arr);
+      state.source = (j.metadata && j.metadata.source) ? j.metadata.source : 'API-Football (api-sports.io)';
+      state.gamesBySurface = (j.metadata && j.metadata.games_by_surface) ? j.metadata.games_by_surface : null;
+      state.filters = { league: 'all', team: 'all', surface: 'all', context: 'all', search: '' };
+    }
+    render();
+  }).catch(function() {
+    render();
+  });
 }
 
 function resetData() {
@@ -516,15 +527,10 @@ function render() {
   var leagues = getLeagues();
   var surfaces = getSurfaces();
   var teams = getTeams();
-  var worstSurface = getWorstSurface(filtered);
-
   // Stats
   var total = filtered.length;
-  var worstCount = filtered.filter(function(i) { return i.surface === worstSurface; }).length;
-  var grassCount = filtered.filter(function(i) { return i.surface === 'Grass'; }).length;
-  var vsGrassRate = grassCount > 0 ? '+' + ((worstCount / grassCount - 1) * 100).toFixed(0) + '%' : 'N/A';
-  var disparity = getInjuryTypeDisparity(filtered, worstSurface);
-  var disparityText = disparity.ratio > 0 ? disparity.ratio.toFixed(1) + 'x' : 'N/A';
+  var lowerBodyCount = filtered.filter(function(i) { return isLowerBodyInjury(i.injuryType) || /lower-body/i.test(i.injuryType); }).length;
+  var lowerBodyPct = total > 0 ? Math.round(lowerBodyCount / total * 100) : 0;
 
   while (document.body.firstChild) document.body.removeChild(document.body.firstChild);
 
@@ -583,9 +589,18 @@ function render() {
   var srcLabel = el('div', null,
     el('span', { className: 'source-label' }, 'Source: '),
     el('span', { style: { color: isSynthetic ? 'var(--banner-synthetic-text)' : 'var(--banner-real-text)' } },
-      isSynthetic ? 'Loading data\u2026' : state.source)
-  )
+      isSynthetic ? 'Synthetic \u2014 upload real JSON \u2192' : state.source)
+  );
   banner.appendChild(srcLabel);
+  var btnGroup = el('div', { style: { display: 'flex', gap: '8px' } });
+  var fileInput = el('input', { type: 'file', accept: '.json', style: { display: 'none' } });
+  fileInput.addEventListener('change', function(e) { if (e.target.files[0]) loadJSON(e.target.files[0]); });
+  btnGroup.appendChild(fileInput);
+  btnGroup.appendChild(el('button', { onClick: function() { fileInput.click(); } }, 'Load JSON'));
+  if (!isSynthetic) {
+    btnGroup.appendChild(el('button', { onClick: resetData }, 'Reset'));
+  }
+  banner.appendChild(btnGroup);
   main.appendChild(banner);
 
   // -- Headline --
@@ -611,16 +626,15 @@ function render() {
   findings.appendChild(f1);
 
   var f2 = el('div', { className: 'finding-card' });
-  f2.appendChild(el('div', { className: 'finding-value accent' }, vsGrassRate));
-  f2.appendChild(el('div', { className: 'finding-label' }, worstSurface + ' vs Grass'));
-  f2.appendChild(el('div', { className: 'finding-desc' }, worstSurface + ' fields have ' + vsGrassRate + ' more injuries than natural grass fields'));
+  f2.appendChild(el('div', { className: 'finding-value' }, String(surfaces.length)));
+  f2.appendChild(el('div', { className: 'finding-label' }, 'Surfaces Compared'));
+  f2.appendChild(el('div', { className: 'finding-desc' }, 'Raw counts and per-game rates rank surfaces differently. Both views are shown below — neither alone establishes which surface is riskiest.'));
   findings.appendChild(f2);
 
   var f3 = el('div', { className: 'finding-card' });
-  f3.appendChild(el('div', { className: 'finding-value accent' }, disparityText));
-  var disparitySurface = disparity.surface || worstSurface;
-  f3.appendChild(el('div', { className: 'finding-label' }, (disparity.type || 'Injury') + ' Disparity'));
-  f3.appendChild(el('div', { className: 'finding-desc' }, (disparity.type || 'This injury') + ' occurs ' + disparityText + ' more often on ' + disparitySurface.toLowerCase() + ' than on grass (' + disparity.worstCount + ' vs ' + disparity.grassCount + ')'));
+  f3.appendChild(el('div', { className: 'finding-value accent' }, lowerBodyPct + '%'));
+  f3.appendChild(el('div', { className: 'finding-label' }, 'Lower-Body Injuries'));
+  f3.appendChild(el('div', { className: 'finding-desc' }, lowerBodyPct + '% of injuries (' + lowerBodyCount.toLocaleString() + ' of ' + total.toLocaleString() + ') affect the lower body — the region most plausibly shaped by playing surface'));
   findings.appendChild(f3);
 
   main.appendChild(findings);
@@ -641,9 +655,9 @@ function render() {
 
   // -- Narrative sections (added in Tasks 4-7) --
   renderHeroChart(main, filtered);
-  renderPerTeamRate(main, filtered);
   renderPerGameRate(main, filtered);
-  renderCallout(main, filtered, disparity);
+  renderPerTeamRate(main, filtered);
+  renderCallout(main, filtered);
   renderInjuryTypes(main, filtered, surfaces);
   renderTeamRankings(main, filtered);
   renderPlayerLog(main, filtered);
@@ -655,7 +669,9 @@ function render() {
 function renderFooter() {
   var footer = el('footer', { className: 'site-footer' });
   footer.appendChild(el('h3', null, 'About This Data'));
-  var text = 'Data from ' + state.source + '. ' + state.injuries.length.toLocaleString() + ' distinct injury events across ' + getLeagues().length + ' leagues. Repeated fixture reports collapsed into single injury events. Surface types sourced from DBpedia and manual stadium research. Pipeline and source code available on GitHub.';
+  var text = state.source === 'synthetic'
+    ? 'Currently showing synthetic data (' + state.injuries.length.toLocaleString() + ' simulated injuries). To use real data: 1) Sign up at dashboard.api-football.com. 2) Run the Python pipeline script with your API key. 3) Click "Load JSON" above to import the output file.'
+    : 'Real data from ' + state.source + '. ' + state.injuries.length.toLocaleString() + ' records across ' + getLeagues().length + ' leagues. Surface types from DBpedia and manual research. Severity assigned heuristically from injury descriptions. Recovery duration (days out) is not available in the source data, so time-lost is not reported. Surface comparisons should be read per game played, not by raw count.';
   footer.appendChild(el('p', null, text));
   return footer;
 }
@@ -681,41 +697,26 @@ function renderHeroChart(container, filtered) {
   section.setAttribute('role', 'img');
   section.setAttribute('aria-label', 'Bar chart showing injury count by field surface type');
   section.appendChild(el('h2', null, 'Injuries by Field Surface'));
-  section.appendChild(el('div', { className: 'section-intro' }, 'Total count across all leagues.'));
+  section.appendChild(el('div', { className: 'section-intro' }, 'Raw injury totals across all leagues. These counts are driven mostly by how many games each surface hosts \u2014 not by how risky the surface is. For a fair comparison, see Injuries per Game below.'));
 
   var bySurface = aggregate(filtered, 'surface');
-  var total = filtered.length || 1;
   var maxCount = bySurface.length > 0 ? bySurface[0].count : 1;
-  var topSurface = bySurface.length > 0 ? bySurface[0].label : '';
-  var isFirst = true;
 
   bySurface.forEach(function(s) {
-    var isTop = (s.label === topSurface);
-    var barColor = isTop ? 'var(--accent)' : 'var(--neutral-bar)';
-    var labelColor = isTop ? 'var(--accent)' : 'var(--neutral-600)';
-
     var group = el('div', { className: 'hero-surface-group' });
 
     var row = el('div', { className: 'hero-bar-row' });
-    row.appendChild(el('div', { className: 'hero-bar-label', style: { color: labelColor, fontWeight: isTop ? '700' : '600' } }, s.label));
+    row.appendChild(el('div', { className: 'hero-bar-label', style: { color: 'var(--neutral-600)', fontWeight: '600' } }, s.label));
     var track = el('div', { className: 'hero-bar-track' });
-    track.appendChild(el('div', { className: 'hero-bar-fill', style: { width: ((s.count / maxCount) * 100) + '%', background: barColor } }));
+    track.appendChild(el('div', { className: 'hero-bar-fill', style: { width: ((s.count / maxCount) * 100) + '%', background: 'var(--neutral-bar)' } }));
     row.appendChild(track);
     row.appendChild(el('span', { className: 'hero-bar-value' }, String(s.count)));
     group.appendChild(row);
 
     section.appendChild(group);
-
-    // Annotation on top surface
-    if (isTop) {
-      var pct = ((s.count / total) * 100).toFixed(0);
-      section.appendChild(el('div', { className: 'hero-annotation' }, '\u25b2 ' + s.label + ' accounts for ' + pct + '% of all injuries'));
-    }
-
-    isFirst = false;
   });
 
-  section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io)'));
+  section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io). Counts only \u2014 not exposure-adjusted.'));
   container.appendChild(section);
 }
 
@@ -728,14 +729,12 @@ function renderPerTeamRate(container, filtered) {
 
   var rates = getPerTeamRate(filtered);
   var maxRate = rates.length > 0 ? rates[0].rate : 1;
-  var topSurface = rates.length > 0 ? rates[0].label : '';
 
   rates.forEach(function(r) {
-    var isTop = (r.label === topSurface);
     var row = el('div', { className: 'rate-bar-row' });
-    row.appendChild(el('div', { className: 'rate-bar-label', style: { color: isTop ? 'var(--accent)' : 'var(--neutral-600)', fontWeight: isTop ? '700' : '600' } }, r.label));
+    row.appendChild(el('div', { className: 'rate-bar-label', style: { color: 'var(--neutral-600)', fontWeight: '600' } }, r.label));
     var track = el('div', { className: 'rate-bar-track' });
-    track.appendChild(el('div', { className: 'rate-bar-fill', style: { width: ((r.rate / maxRate) * 100) + '%', background: isTop ? 'var(--accent)' : 'var(--neutral-bar)', borderRadius: '1px' } }));
+    track.appendChild(el('div', { className: 'rate-bar-fill', style: { width: ((r.rate / maxRate) * 100) + '%', background: 'var(--neutral-bar)', borderRadius: '1px' } }));
     row.appendChild(track);
     row.appendChild(el('span', { className: 'rate-bar-value' }, r.rate.toFixed(1)));
     section.appendChild(row);
@@ -751,7 +750,7 @@ function renderPerGameRate(container, filtered) {
   section.setAttribute('role', 'img');
   section.setAttribute('aria-label', 'Bar chart showing injuries per game by surface type');
   section.appendChild(el('h2', { style: { fontSize: '18px' } }, 'Injuries per Game'));
-  section.appendChild(el('div', { className: 'section-intro' }, 'Injury rate normalized by number of games played on each surface. Accounts for the fact that some surfaces host fewer matches.'));
+  section.appendChild(el('div', { className: 'section-intro' }, 'The same injuries, divided by games played on each surface — the fair comparison the raw counts above can’t give. Read alongside the count chart, not instead of it: surfaces that host few games (e.g. grass) have small denominators, so their rates are less certain.'));
 
   var injBySurface = {};
   filtered.forEach(function(i) {
@@ -763,19 +762,17 @@ function renderPerGameRate(container, filtered) {
     var injuries = injBySurface[s] || 0;
     var rate = games > 0 ? injuries / games : 0;
     return { label: s, injuries: injuries, games: games, rate: rate };
-  }).filter(function(r) { return r.games > 0; }).sort(function(a, b) { return b.rate - a.rate; });
+  }).filter(function(r) { return r.games > 0 && r.injuries > 0; }).sort(function(a, b) { return b.rate - a.rate; });
 
   if (rates.length === 0) return;
 
   var maxRate = rates[0].rate;
-  var topSurface = rates[0].label;
 
   rates.forEach(function(r) {
-    var isTop = (r.label === topSurface);
     var row = el('div', { className: 'rate-bar-row' });
-    row.appendChild(el('div', { className: 'rate-bar-label', style: { color: isTop ? 'var(--accent)' : 'var(--neutral-600)', fontWeight: isTop ? '700' : '600' } }, r.label));
+    row.appendChild(el('div', { className: 'rate-bar-label', style: { color: 'var(--neutral-600)', fontWeight: '600' } }, r.label));
     var track = el('div', { className: 'rate-bar-track' });
-    track.appendChild(el('div', { className: 'rate-bar-fill', style: { width: ((r.rate / maxRate) * 100) + '%', background: isTop ? 'var(--accent)' : 'var(--neutral-bar)', borderRadius: '1px' } }));
+    track.appendChild(el('div', { className: 'rate-bar-fill', style: { width: ((r.rate / maxRate) * 100) + '%', background: 'var(--neutral-bar)', borderRadius: '1px' } }));
     row.appendChild(track);
     row.appendChild(el('span', { className: 'rate-bar-value' }, r.rate.toFixed(2) + ' (' + r.injuries + ' in ' + r.games + ' games)'));
     section.appendChild(row);
@@ -785,13 +782,13 @@ function renderPerGameRate(container, filtered) {
   container.appendChild(section);
 }
 
-function renderCallout(container, filtered, disparity) {
-  if (disparity.ratio <= 0) return;
-  var topSurface = getWorstSurface(filtered);
+function renderCallout(container, filtered) {
+  var total = filtered.length;
+  if (total === 0) return;
+  function share(type) { return Math.round(filtered.filter(function(i) { return i.injuryType === type; }).length / total * 100); }
   var callout = el('div', { className: 'callout' });
-  callout.appendChild(el('div', { className: 'callout-number' }, disparity.ratio.toFixed(1) + 'x'));
-  var calloutSurface = disparity.surface || topSurface;
-  callout.appendChild(el('div', { className: 'callout-text' }, disparity.type + ' injuries occur at ' + disparity.ratio.toFixed(1) + ' times the rate on ' + calloutSurface.toLowerCase() + ' fields compared to natural grass (' + disparity.worstCount + ' on ' + calloutSurface.toLowerCase() + ' vs ' + disparity.grassCount + ' on grass).'));
+  callout.appendChild(el('div', { className: 'callout-number' }, 'Same mix'));
+  callout.appendChild(el('div', { className: 'callout-text' }, 'The breakdown of injuries barely changes by surface — muscle ≈' + share('Muscle Injury') + '%, knee ≈' + share('Knee Injury') + '%, ankle ≈' + share('Ankle Injury') + '% on grass, hybrid, turf and retractable fields alike. No injury type is meaningfully tied to a particular surface; field type tracks how many injuries are recorded, not which injuries occur.'));
   container.appendChild(callout);
 }
 
@@ -801,10 +798,7 @@ function renderInjuryTypes(container, filtered, surfaces) {
   section.setAttribute('aria-label', 'Top injury types broken down by surface');
   section.appendChild(el('h2', null, 'Top Injuries by Surface'));
 
-  // Determine which surface has the most injuries in this section
-  var surfaceTotals = aggregate(filtered, 'surface');
-  var topSurface = surfaceTotals.length > 0 ? surfaceTotals[0].label : '';
-  section.appendChild(el('div', { className: 'section-intro' }, 'Common scale across surfaces. Highlighted: ' + topSurface + ' (most injuries).'));
+  section.appendChild(el('div', { className: 'section-intro' }, 'Most common injury types within each surface, on a common scale. Bar lengths reflect raw counts, so longer bars on high-volume surfaces (e.g. hybrid) mostly reflect more games played, not higher risk.'));
 
   // Find global max across all surface/injury combos for common scale
   var globalMax = 0;
@@ -823,18 +817,19 @@ function renderInjuryTypes(container, filtered, surfaces) {
     si.forEach(function(i) { typeMap[i.injuryType] = (typeMap[i.injuryType] || 0) + 1; });
     var sorted = Object.entries(typeMap).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 5);
 
-    var isTop = (s === topSurface);
     var group = el('div', { className: 'injury-surface-group' });
-    group.appendChild(el('div', { className: 'injury-surface-label', style: { color: isTop ? 'var(--accent)' : 'var(--neutral-600)' } }, s));
+    group.appendChild(el('div', { className: 'injury-surface-label', style: { color: 'var(--neutral-600)' } }, s));
 
     sorted.forEach(function(entry) {
       var type = entry[0], count = entry[1];
+      var isVague = (type === UNSPECIFIED_TYPE);
       var row = el('div', { className: 'injury-bar-row' });
-      row.appendChild(el('div', { className: 'injury-bar-label' }, type));
+      row.appendChild(el('div', { className: 'injury-bar-label', style: isVague ? { color: 'var(--neutral-600)', fontStyle: 'italic' } : null }, type));
       var track = el('div', { className: 'injury-bar-track' });
-      track.appendChild(el('div', { className: 'injury-bar-fill', style: { width: ((count / globalMax) * 100) + '%', background: isTop ? 'var(--accent)' : 'var(--neutral-bar)' } }));
+      var fillColor = isVague ? 'var(--neutral-bar-light)' : 'var(--neutral-bar)';
+      track.appendChild(el('div', { className: 'injury-bar-fill', style: { width: ((count / globalMax) * 100) + '%', background: fillColor } }));
       row.appendChild(track);
-      row.appendChild(el('div', { className: 'injury-bar-value' }, String(count)));
+      row.appendChild(el('div', { className: 'injury-bar-value', style: isVague ? { color: 'var(--neutral-600)' } : null }, String(count)));
       group.appendChild(row);
     });
 
@@ -975,36 +970,6 @@ function renderPlayerLog(container, filtered) {
   section.appendChild(listWrap);
   section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io)'));
   container.appendChild(section);
-}
-
-// -- Auto-load data from JSON file --
-function loadFromURL(url) {
-  fetch(url).then(function(resp) {
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    return resp.json();
-  }).then(function(j) {
-    var arr = j.injuries || j;
-    if (Array.isArray(arr) && arr.length > 0) {
-      state.injuries = arr.map(function(x, i) {
-        return {
-          id: x.id != null ? x.id : i, player: x.player || 'Unknown', team: x.team || 'Unknown',
-          league: x.league || 'Unknown', leagueId: x.leagueId || x.league_id || 'unknown',
-          surface: x.surface || 'Unknown', teamSurface: x.teamSurface || x.team_surface || x.surface || 'Unknown',
-          context: x.context || x.field_context || 'Game Field',
-          injuryType: x.injuryType || x.injury_type || x.injury_reason || 'Unknown',
-          severity: x.severity || 'Unknown', daysOut: x.daysOut || x.days_out || 0,
-          date: x.date || '', city: x.city || '',
-          homeAway: x.homeAway || '', opponentTeam: x.opponentTeam || '',
-        };
-      });
-      state.source = 'API-Football (api-sports.io)';
-      state.gamesBySurface = (j.metadata && j.metadata.games_by_surface) ? j.metadata.games_by_surface : null;
-      state.filters = { league: 'all', team: 'all', surface: 'all', context: 'all', search: '' };
-    }
-    render();
-  }).catch(function() {
-    render();
-  });
 }
 
 // -- Initialize --
