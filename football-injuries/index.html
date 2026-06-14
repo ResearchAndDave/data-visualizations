@@ -87,21 +87,21 @@ h3 { font-size: 18px; font-weight: 700; line-height: 1.2; }
 .narrative-section h2 { margin-bottom: 4px; }
 .narrative-section .section-intro { font-size: 14px; color: var(--neutral-600); margin-bottom: 16px; line-height: 1.6; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; }
 
-/* -- Hero Chart Bars -- */
-.hero-surface-group { margin-bottom: 8px; }
-.hero-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.hero-bar-label { width: 96px; text-align: right; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; font-weight: 600; line-height: 1; flex-shrink: 0; }
-.hero-bar-track { flex: 1; height: 16px; position: relative; }
-.hero-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; transition: width 0.4s ease; }
-.hero-bar-value { font-family: monospace; font-size: 12px; color: var(--neutral-600); margin-left: 4px; white-space: nowrap; line-height: 1; }
-.hero-annotation { margin-left: 104px; font-size: 12px; color: var(--accent); font-style: italic; margin-top: 2px; margin-bottom: 8px; line-height: 1.5; }
+/* -- Takeaway annotation (under the surface comparison) -- */
+.hero-annotation { font-size: 12px; color: var(--accent); font-style: italic; margin-top: 8px; margin-bottom: 4px; line-height: 1.5; }
 
-/* -- Per-Team Rate Bars -- */
-.rate-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.rate-bar-label { width: 96px; text-align: right; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; font-weight: 600; line-height: 1; flex-shrink: 0; }
-.rate-bar-track { flex: 1; height: 12px; position: relative; }
-.rate-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; }
-.rate-bar-value { font-family: monospace; font-size: 12px; color: var(--neutral-600); margin-left: 4px; line-height: 1; }
+/* -- Surface comparison (count vs. per-game small multiples) -- */
+.cmp-head { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 12px; }
+.cmp-head-spacer { width: 96px; flex-shrink: 0; }
+.cmp-metrics { flex: 1; display: flex; gap: 48px; }
+.cmp-metric-head { flex: 1; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--neutral-600); line-height: 1.2; }
+.cmp-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cmp-label { width: 96px; text-align: right; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; font-weight: 600; color: var(--neutral-600); line-height: 1; flex-shrink: 0; }
+.cmp-metric { flex: 1; display: flex; align-items: center; gap: 8px; }
+.cmp-track { flex: 1; height: 16px; position: relative; }
+.cmp-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; background: var(--neutral-bar); transition: width 0.4s ease; }
+.cmp-value { font-family: monospace; font-size: 12px; color: var(--neutral-600); white-space: nowrap; line-height: 1; width: 36px; text-align: right; flex-shrink: 0; }
+@media (max-width: 640px) { .cmp-metrics { flex-direction: column; gap: 4px; } .cmp-row { flex-wrap: wrap; } .cmp-head { display: none; } }
 
 /* -- Callout -- */
 .callout { margin: 32px 0; padding: 16px 24px; border-left: 4px solid var(--accent); background: var(--accent-bg); }
@@ -355,33 +355,6 @@ function aggregate(data, key) {
 function getWorstSurface(data) {
   var counts = aggregate(data, 'surface');
   return counts.length > 0 ? counts[0].label : 'Unknown';
-}
-
-function getTeamsBySurface(data) {
-  var teams = {};
-  data.forEach(function(i) {
-    var key = i.team + '|' + i.teamSurface;
-    if (!teams[key]) teams[key] = { team: i.team, surface: i.teamSurface };
-    teams[key] = { team: i.team, surface: i.teamSurface };
-  });
-  return Object.values(teams);
-}
-
-function getPerTeamRate(data) {
-  var surfaceCounts = {};
-  var surfaceTeams = {};
-  data.forEach(function(i) {
-    surfaceCounts[i.surface] = (surfaceCounts[i.surface] || 0) + 1;
-  });
-  var allTeams = getTeamsBySurface(data);
-  allTeams.forEach(function(t) {
-    if (!surfaceTeams[t.surface]) surfaceTeams[t.surface] = new Set();
-    surfaceTeams[t.surface].add(t.team);
-  });
-  return Object.keys(surfaceCounts).map(function(s) {
-    var teamCount = surfaceTeams[s] ? surfaceTeams[s].size : 1;
-    return { label: s, count: surfaceCounts[s], teams: teamCount, rate: surfaceCounts[s] / teamCount };
-  }).sort(function(a, b) { return b.rate - a.rate; });
 }
 
 var LOWER_BODY_KEYWORDS = ['knee', 'hamstring', 'ankle', 'calf', 'thigh', 'groin', 'leg', 'achilles', 'hip', 'foot', 'muscle', 'cruciate', 'acl', 'quad', 'shin', 'metatarsal'];
@@ -654,9 +627,7 @@ function render() {
   }
 
   // -- Narrative sections (added in Tasks 4-7) --
-  renderHeroChart(main, filtered);
-  renderPerGameRate(main, filtered);
-  renderPerTeamRate(main, filtered);
+  renderSurfaceComparison(main, filtered);
   renderCallout(main, filtered);
   renderInjuryTypes(main, filtered, surfaces);
   renderTeamRankings(main, filtered);
@@ -692,93 +663,83 @@ function setupScrollObserver() {
   observer.observe(target);
 }
 
-function renderHeroChart(container, filtered) {
-  var section = el('section', { className: 'narrative-section', 'aria-label': 'Injuries by field surface' });
-  section.setAttribute('role', 'img');
-  section.setAttribute('aria-label', 'Bar chart showing injury count by field surface type');
-  section.appendChild(el('h2', null, 'Injuries by Field Surface'));
-  section.appendChild(el('div', { className: 'section-intro' }, 'Raw injury totals across all leagues. These counts are driven mostly by how many games each surface hosts \u2014 not by how risky the surface is. For a fair comparison, see Injuries per Game below.'));
-
-  var bySurface = aggregate(filtered, 'surface');
-  var maxCount = bySurface.length > 0 ? bySurface[0].count : 1;
-
-  bySurface.forEach(function(s) {
-    var group = el('div', { className: 'hero-surface-group' });
-
-    var row = el('div', { className: 'hero-bar-row' });
-    row.appendChild(el('div', { className: 'hero-bar-label', style: { color: 'var(--neutral-600)', fontWeight: '600' } }, s.label));
-    var track = el('div', { className: 'hero-bar-track' });
-    track.appendChild(el('div', { className: 'hero-bar-fill', style: { width: ((s.count / maxCount) * 100) + '%', background: 'var(--neutral-bar)' } }));
-    row.appendChild(track);
-    row.appendChild(el('span', { className: 'hero-bar-value' }, String(s.count)));
-    group.appendChild(row);
-
-    section.appendChild(group);
-  });
-
-  section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io). Counts only \u2014 not exposure-adjusted.'));
-  container.appendChild(section);
-}
-
-function renderPerTeamRate(container, filtered) {
+function renderSurfaceComparison(container, filtered) {
   var section = el('section', { className: 'narrative-section' });
   section.setAttribute('role', 'img');
-  section.setAttribute('aria-label', 'Bar chart showing average injuries per team by surface type');
-  section.appendChild(el('h2', { style: { fontSize: '18px' } }, 'Adjusted for Team Count'));
-  section.appendChild(el('div', { className: 'section-intro' }, 'Average injuries per team on each surface type.'));
+  section.setAttribute('aria-label', 'Injuries by surface: total count versus injuries per game, side by side');
+  section.appendChild(el('h2', null, 'Total Injuries vs. Injuries per Game'));
 
-  var rates = getPerTeamRate(filtered);
-  var maxRate = rates.length > 0 ? rates[0].rate : 1;
+  var counts = aggregate(filtered, 'surface'); // sorted desc by count
+  if (counts.length === 0) { return; }
+  var games = state.gamesBySurface;
 
-  rates.forEach(function(r) {
-    var row = el('div', { className: 'rate-bar-row' });
-    row.appendChild(el('div', { className: 'rate-bar-label', style: { color: 'var(--neutral-600)', fontWeight: '600' } }, r.label));
-    var track = el('div', { className: 'rate-bar-track' });
-    track.appendChild(el('div', { className: 'rate-bar-fill', style: { width: ((r.rate / maxRate) * 100) + '%', background: 'var(--neutral-bar)', borderRadius: '1px' } }));
-    row.appendChild(track);
-    row.appendChild(el('span', { className: 'rate-bar-value' }, r.rate.toFixed(1)));
+  var rows = counts.map(function(c) {
+    var g = games ? (games[c.label] || 0) : 0;
+    return { surface: c.label, count: c.count, games: g, rate: g > 0 ? c.count / g : null };
+  });
+  var maxCount = rows[0].count || 1;
+  var maxRate = rows.reduce(function(m, r) { return (r.rate != null && r.rate > m) ? r.rate : m; }, 0) || 1;
+  var hasRate = rows.some(function(r) { return r.rate != null; });
+
+  if (!hasRate) {
+    section.appendChild(el('div', { className: 'section-intro' }, 'Raw injury totals across all leagues. Load real data with games-played metadata to see the exposure-adjusted per-game rate alongside.'));
+    rows.forEach(function(r) {
+      var row = el('div', { className: 'cmp-row' });
+      row.appendChild(el('div', { className: 'cmp-label' }, r.surface));
+      var metric = el('div', { className: 'cmp-metric' });
+      var track = el('div', { className: 'cmp-track' });
+      track.appendChild(el('div', { className: 'cmp-fill', style: { width: ((r.count / maxCount) * 100) + '%' } }));
+      metric.appendChild(track);
+      metric.appendChild(el('div', { className: 'cmp-value' }, String(r.count)));
+      row.appendChild(metric);
+      section.appendChild(row);
+    });
+    container.appendChild(section);
+    return;
+  }
+
+  section.appendChild(el('div', { className: 'section-intro' }, 'Same data, two questions — shown side by side so they can be read together. By raw total, hybrid pitches lead; but that mostly reflects how many games each surface hosts. Divide by games played and the order changes. Each surface stays on the same row, so you can see the two metrics disagree.'));
+
+  var head = el('div', { className: 'cmp-head' });
+  head.appendChild(el('div', { className: 'cmp-head-spacer' }));
+  var heads = el('div', { className: 'cmp-metrics' });
+  heads.appendChild(el('div', { className: 'cmp-metric-head' }, 'Total injuries'));
+  heads.appendChild(el('div', { className: 'cmp-metric-head' }, 'Per game played'));
+  head.appendChild(heads);
+  section.appendChild(head);
+
+  rows.forEach(function(r) {
+    var row = el('div', { className: 'cmp-row' });
+    row.appendChild(el('div', { className: 'cmp-label' }, r.surface));
+    var metrics = el('div', { className: 'cmp-metrics' });
+
+    var m1 = el('div', { className: 'cmp-metric' });
+    var t1 = el('div', { className: 'cmp-track' });
+    t1.appendChild(el('div', { className: 'cmp-fill', style: { width: ((r.count / maxCount) * 100) + '%' } }));
+    m1.appendChild(t1);
+    m1.appendChild(el('div', { className: 'cmp-value' }, r.count.toLocaleString()));
+    metrics.appendChild(m1);
+
+    var m2 = el('div', { className: 'cmp-metric' });
+    var t2 = el('div', { className: 'cmp-track' });
+    if (r.rate != null) t2.appendChild(el('div', { className: 'cmp-fill', style: { width: ((r.rate / maxRate) * 100) + '%' } }));
+    m2.appendChild(t2);
+    m2.appendChild(el('div', { className: 'cmp-value' }, r.rate != null ? r.rate.toFixed(2) : 'n/a'));
+    metrics.appendChild(m2);
+
+    row.appendChild(metrics);
     section.appendChild(row);
   });
 
-  container.appendChild(section);
-}
+  var topCount = rows[0].surface;
+  var topRate = rows.slice().sort(function(a, b) { return (b.rate || 0) - (a.rate || 0); })[0].surface;
+  if (topCount !== topRate) {
+    section.appendChild(el('div', { className: 'hero-annotation', style: { marginLeft: '0' } },
+      topCount + ' has the most injuries overall, but ' + topRate.toLowerCase() + ' has the most per game played — total and rate point to different surfaces.'));
+  }
 
-function renderPerGameRate(container, filtered) {
-  if (!state.gamesBySurface) return;
-
-  var section = el('section', { className: 'narrative-section' });
-  section.setAttribute('role', 'img');
-  section.setAttribute('aria-label', 'Bar chart showing injuries per game by surface type');
-  section.appendChild(el('h2', { style: { fontSize: '18px' } }, 'Injuries per Game'));
-  section.appendChild(el('div', { className: 'section-intro' }, 'The same injuries, divided by games played on each surface — the fair comparison the raw counts above can’t give. Read alongside the count chart, not instead of it: surfaces that host few games (e.g. grass) have small denominators, so their rates are less certain.'));
-
-  var injBySurface = {};
-  filtered.forEach(function(i) {
-    injBySurface[i.surface] = (injBySurface[i.surface] || 0) + 1;
-  });
-
-  var rates = Object.keys(state.gamesBySurface).map(function(s) {
-    var games = state.gamesBySurface[s] || 0;
-    var injuries = injBySurface[s] || 0;
-    var rate = games > 0 ? injuries / games : 0;
-    return { label: s, injuries: injuries, games: games, rate: rate };
-  }).filter(function(r) { return r.games > 0 && r.injuries > 0; }).sort(function(a, b) { return b.rate - a.rate; });
-
-  if (rates.length === 0) return;
-
-  var maxRate = rates[0].rate;
-
-  rates.forEach(function(r) {
-    var row = el('div', { className: 'rate-bar-row' });
-    row.appendChild(el('div', { className: 'rate-bar-label', style: { color: 'var(--neutral-600)', fontWeight: '600' } }, r.label));
-    var track = el('div', { className: 'rate-bar-track' });
-    track.appendChild(el('div', { className: 'rate-bar-fill', style: { width: ((r.rate / maxRate) * 100) + '%', background: 'var(--neutral-bar)', borderRadius: '1px' } }));
-    row.appendChild(track);
-    row.appendChild(el('span', { className: 'rate-bar-value' }, r.rate.toFixed(2) + ' (' + r.injuries + ' in ' + r.games + ' games)'));
-    section.appendChild(row);
-  });
-
-  section.appendChild(el('div', { className: 'source-attr' }, 'Rate = injuries / games played on that surface'));
+  var denoms = rows.filter(function(r) { return r.games > 0; }).map(function(r) { return r.surface + ' ' + r.count.toLocaleString() + '/' + r.games.toLocaleString(); }).join(' · ');
+  section.appendChild(el('div', { className: 'source-attr' }, 'Per game = injuries ÷ games played (' + denoms + '). Surfaces hosting few games — e.g. grass — have small denominators, so their rates are less certain.'));
   container.appendChild(section);
 }
 
