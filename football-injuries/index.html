@@ -420,8 +420,8 @@ function normalizeInjuryType(raw) {
   if (/\brib\b|ribs|chest|hernia/.test(t)) return 'Rib/Chest Injury';
   if (/elbow|forearm|\barm\b|wrist|wirst|\bhand\b|finger|metacarpal/.test(t)) return 'Arm/Hand Injury';
   if (/\bback\b/.test(t)) return 'Back Injury';
-  if (/lower-body|lower body/.test(t)) return 'Lower-Body (unspecified)';
-  if (/upper-body|upper body/.test(t)) return 'Upper-Body (unspecified)';
+  if (/lower-body|lower body/.test(t)) return 'Lower-Body';
+  if (/upper-body|upper body/.test(t)) return 'Upper-Body';
   if (/wound|contusion|bruise|cut/.test(t)) return 'Bruise/Wound';
 
   return raw; // unmatched: keep the original label
