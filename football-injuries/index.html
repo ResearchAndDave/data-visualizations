@@ -54,6 +54,7 @@ h2 { font-size: 20px; font-weight: 700; line-height: 1.2; }
 h3 { font-size: 18px; font-weight: 700; line-height: 1.2; }
 
 /* -- Layout -- */
+html { scroll-behavior: smooth; }
 .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
 
 /* -- Masthead -- */
@@ -83,7 +84,7 @@ h3 { font-size: 18px; font-weight: 700; line-height: 1.2; }
 .finding-desc { font-size: 12px; color: var(--neutral-400); margin-top: 4px; line-height: 1.5; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; text-transform: none; letter-spacing: 0; }
 
 /* -- Section -- */
-.narrative-section { padding: 32px 0; border-top: 1px solid var(--border-light); }
+.narrative-section { padding: 32px 0; border-top: 1px solid var(--border-light); scroll-margin-top: 64px; }
 .narrative-section h2 { margin-bottom: 4px; }
 .narrative-section .section-intro { font-size: 14px; color: var(--neutral-600); margin-bottom: 16px; line-height: 1.6; font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; }
 
@@ -100,6 +101,7 @@ h3 { font-size: 18px; font-weight: 700; line-height: 1.2; }
 .cmp-metric { flex: 1; display: flex; align-items: center; gap: 8px; }
 .cmp-track { flex: 1; height: 16px; position: relative; }
 .cmp-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; background: var(--neutral-bar); transition: width 0.4s ease; }
+.cmp-fill.uncertain { background-color: var(--neutral-bar-light); background-image: repeating-linear-gradient(45deg, hsla(30, 10%, 10%, 0.16) 0, hsla(30, 10%, 10%, 0.16) 3px, transparent 3px, transparent 6px); }
 .cmp-value { font-family: monospace; font-size: 12px; color: var(--neutral-600); white-space: nowrap; line-height: 1; width: 36px; text-align: right; flex-shrink: 0; }
 @media (max-width: 640px) { .cmp-metrics { flex-direction: column; gap: 4px; } .cmp-row { flex-wrap: wrap; } .cmp-head { display: none; } }
 
@@ -138,7 +140,6 @@ h3 { font-size: 18px; font-weight: 700; line-height: 1.2; }
 .player-injury-line { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: var(--neutral-600); line-height: 1.6; }
 .player-injury-line .accent-bullet { color: var(--accent); font-weight: 600; }
 .player-injury-line .severe { color: var(--accent); font-weight: 600; }
-.player-more { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: var(--neutral-400); line-height: 1.6; }
 
 /* -- Search Input -- */
 .search-input { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: Georgia, serif; background: var(--white); width: 200px; line-height: 1.5; min-height: 44px; }
@@ -150,6 +151,19 @@ h3 { font-size: 18px; font-weight: 700; line-height: 1.2; }
 .filter-bar select { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: Georgia, serif; background: var(--white); line-height: 1.5; min-height: 44px; }
 .filter-bar .filter-count { font-size: 12px; color: var(--neutral-600); margin-left: auto; line-height: 1; }
 .filter-bar .filter-reset { font-size: 12px; color: var(--accent); cursor: pointer; border: none; background: none; text-decoration: underline; padding: 4px; min-height: 44px; min-width: 44px; display: flex; align-items: center; }
+.filter-bar .section-nav { display: flex; gap: 4px; align-items: center; margin-right: 8px; }
+.filter-bar .section-nav .nav-sep { color: var(--border); }
+.filter-bar .section-nav a { font-size: 12px; color: var(--neutral-600); text-decoration: none; padding: 4px 6px; border-radius: 4px; line-height: 1; }
+.filter-bar .section-nav a:hover { color: var(--accent); background: var(--neutral-100); }
+
+/* -- Loading State -- */
+.loading-state { text-align: center; padding: 96px 24px; max-width: 960px; margin: 0 auto; }
+.loading-state h2 { font-size: 24px; font-weight: 700; color: var(--neutral-900); margin-bottom: 8px; }
+.loading-state p { font-size: 14px; color: var(--neutral-600); line-height: 1.6; }
+
+/* -- Player log expand button -- */
+.player-more { font-family: 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: var(--accent); line-height: 1.6; background: none; border: none; padding: 4px 0; cursor: pointer; text-decoration: underline; }
+.player-more:hover { color: var(--neutral-900); }
 
 /* -- Empty State -- */
 .empty-state { text-align: center; padding: 64px 24px; }
@@ -508,8 +522,18 @@ function render() {
   while (document.body.firstChild) document.body.removeChild(document.body.firstChild);
 
   // -- Sticky Filter Bar (hidden by default, shown on scroll) --
-  var filterBar = el('nav', { className: 'filter-bar', 'aria-label': 'Data filters' });
+  var filterBar = el('nav', { className: 'filter-bar', 'aria-label': 'Section navigation and data filters' });
   filterBar.id = 'filter-bar';
+
+  // Section jump links (wayfinding for the long page)
+  var nav = el('div', { className: 'section-nav' });
+  var navItems = [['#top', 'Top'], ['#surfaces', 'Surfaces'], ['#mix', 'Mix'], ['#teams', 'Teams'], ['#players', 'Players']];
+  navItems.forEach(function(item, idx) {
+    nav.appendChild(el('a', { href: item[0] }, item[1]));
+    if (idx < navItems.length - 1) nav.appendChild(el('span', { className: 'nav-sep' }, '·'));
+  });
+  filterBar.appendChild(nav);
+
   filterBar.appendChild(el('span', { className: 'filter-label' }, 'Filter:'));
 
   var leagueSelect = el('select', { 'aria-label': 'Filter by league', onChange: function(e) { state.filters.league = e.target.value; state.filters.team = 'all'; render(); } });
@@ -551,6 +575,7 @@ function render() {
   var masthead = el('header', { className: 'masthead' },
     el('div', { className: 'masthead-label' }, 'The Pitch Report \u2014 Data Investigation')
   );
+  masthead.id = 'top';
   document.body.appendChild(masthead);
 
   var main = el('main', { className: 'container' });
@@ -663,8 +688,10 @@ function setupScrollObserver() {
   observer.observe(target);
 }
 
+var LOW_GAME_THRESHOLD = 300; // below this many games, a per-game rate is shown as less certain
+
 function renderSurfaceComparison(container, filtered) {
-  var section = el('section', { className: 'narrative-section' });
+  var section = el('section', { className: 'narrative-section', id: 'surfaces' });
   section.setAttribute('role', 'img');
   section.setAttribute('aria-label', 'Injuries by surface: total count versus injuries per game, side by side');
   section.appendChild(el('h2', null, 'Total Injuries vs. Injuries per Game'));
@@ -722,7 +749,10 @@ function renderSurfaceComparison(container, filtered) {
 
     var m2 = el('div', { className: 'cmp-metric' });
     var t2 = el('div', { className: 'cmp-track' });
-    if (r.rate != null) t2.appendChild(el('div', { className: 'cmp-fill', style: { width: ((r.rate / maxRate) * 100) + '%' } }));
+    if (r.rate != null) {
+      var lowSample = r.games < LOW_GAME_THRESHOLD;
+      t2.appendChild(el('div', { className: 'cmp-fill' + (lowSample ? ' uncertain' : ''), style: { width: ((r.rate / maxRate) * 100) + '%' } }));
+    }
     m2.appendChild(t2);
     m2.appendChild(el('div', { className: 'cmp-value' }, r.rate != null ? r.rate.toFixed(2) : 'n/a'));
     metrics.appendChild(m2);
@@ -739,7 +769,7 @@ function renderSurfaceComparison(container, filtered) {
   }
 
   var denoms = rows.filter(function(r) { return r.games > 0; }).map(function(r) { return r.surface + ' ' + r.count.toLocaleString() + '/' + r.games.toLocaleString(); }).join(' · ');
-  section.appendChild(el('div', { className: 'source-attr' }, 'Per game = injuries ÷ games played (' + denoms + '). Surfaces hosting few games — e.g. grass — have small denominators, so their rates are less certain.'));
+  section.appendChild(el('div', { className: 'source-attr' }, 'Per game = injuries ÷ games played (' + denoms + '). Striped bars mark surfaces with fewer than ' + LOW_GAME_THRESHOLD.toLocaleString() + ' games — small denominators, so those rates are less certain.'));
   container.appendChild(section);
 }
 
@@ -754,7 +784,7 @@ function renderCallout(container, filtered) {
 }
 
 function renderInjuryTypes(container, filtered, surfaces) {
-  var section = el('section', { className: 'narrative-section' });
+  var section = el('section', { className: 'narrative-section', id: 'mix' });
   section.setAttribute('role', 'img');
   section.setAttribute('aria-label', 'Injury type mix as a share of each surface');
   section.appendChild(el('h2', null, 'Injury Mix by Surface'));
@@ -809,7 +839,7 @@ function renderInjuryTypes(container, filtered, surfaces) {
   container.appendChild(section);
 }
 function renderTeamRankings(container, filtered) {
-  var section = el('section', { className: 'narrative-section' });
+  var section = el('section', { className: 'narrative-section', id: 'teams' });
   section.appendChild(el('h2', null, 'Most Injured Teams'));
   section.appendChild(el('div', { className: 'section-intro' }, 'Top 20 by total injury count.'));
 
@@ -845,7 +875,6 @@ function renderTeamRankings(container, filtered) {
     section.appendChild(row);
   });
 
-  section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io)'));
   container.appendChild(section);
 }
 function buildPlayerList(listWrap, filtered, searchTerm) {
@@ -888,30 +917,34 @@ function buildPlayerList(listWrap, filtered, searchTerm) {
 
     var injDiv = el('div', { className: 'player-injuries' });
     var maxShow = 3;
-    p.injuries.slice(0, maxShow).forEach(function(x) {
-      var line = el('div', { className: 'player-injury-line' });
 
+    function makeLine(x) {
+      var line = el('div', { className: 'player-injury-line' });
       var isWorstSurface = (x.surface === topSurface);
       var bullet = el('span', { className: isWorstSurface ? 'accent-bullet' : '' }, '\u25cf ');
       if (!isWorstSurface) bullet.style.color = 'var(--neutral-400)';
       line.appendChild(bullet);
-
-      var text = x.injuryType + ' \u2014 ' + x.surface + ', ' + x.context + ' \u2014 ';
-      line.appendChild(document.createTextNode(text));
-
+      line.appendChild(document.createTextNode(x.injuryType + ' \u2014 ' + x.surface + ', ' + x.context + ' \u2014 '));
       if (x.severity === 'Severe') {
         line.appendChild(el('span', { className: 'severe' }, 'Severe'));
       } else {
         line.appendChild(document.createTextNode(x.severity));
       }
-
       if (x.daysOut > 0) line.appendChild(document.createTextNode(', ' + x.daysOut + 'd'));
       if (x.date) line.appendChild(document.createTextNode(' \u00b7 ' + x.date));
-      injDiv.appendChild(line);
-    });
+      return line;
+    }
+
+    p.injuries.slice(0, maxShow).forEach(function(x) { injDiv.appendChild(makeLine(x)); });
 
     if (p.injuries.length > maxShow) {
-      injDiv.appendChild(el('div', { className: 'player-more' }, '... ' + (p.injuries.length - maxShow) + ' more'));
+      var remaining = p.injuries.slice(maxShow);
+      var moreBtn = el('button', { className: 'player-more', 'aria-expanded': 'false' }, 'Show ' + remaining.length + ' more');
+      moreBtn.addEventListener('click', function() {
+        remaining.forEach(function(x) { injDiv.insertBefore(makeLine(x), moreBtn); });
+        injDiv.removeChild(moreBtn);
+      });
+      injDiv.appendChild(moreBtn);
     }
 
     entry.appendChild(injDiv);
@@ -920,7 +953,7 @@ function buildPlayerList(listWrap, filtered, searchTerm) {
 }
 
 function renderPlayerLog(container, filtered) {
-  var section = el('section', { className: 'narrative-section' });
+  var section = el('section', { className: 'narrative-section', id: 'players' });
   section.appendChild(el('h2', null, 'Player Injury Log'));
   section.appendChild(el('div', { className: 'section-intro' }, 'Players with the most injuries.'));
 
@@ -938,12 +971,23 @@ function renderPlayerLog(container, filtered) {
   buildPlayerList(listWrap, filtered, state.filters.search);
 
   section.appendChild(listWrap);
-  section.appendChild(el('div', { className: 'source-attr' }, 'Source: API-Football (api-sports.io)'));
   container.appendChild(section);
 }
 
+// -- Loading state (shown until bundled data resolves, so synthetic data never flashes) --
+function renderLoadingState() {
+  while (document.body.firstChild) document.body.removeChild(document.body.firstChild);
+  var masthead = el('header', { className: 'masthead' },
+    el('div', { className: 'masthead-label' }, 'The Pitch Report — Data Investigation'));
+  document.body.appendChild(masthead);
+  var block = el('div', { className: 'loading-state' });
+  block.appendChild(el('h2', null, 'Loading injury data…'));
+  block.appendChild(el('p', null, 'Reading the latest dataset. This takes a moment on first load.'));
+  document.body.appendChild(block);
+}
+
 // -- Initialize --
-render();
+renderLoadingState();
 loadFromURL('data.json');
 </script>
 </body>
