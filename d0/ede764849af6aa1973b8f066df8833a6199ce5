@@ -1,0 +1,19 @@
+football-injuries/AGENTS.md
+  s_cf7cb2f320c1bf::t_0b33e4df927947 1-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d0ede764849af6aa1973b8f066df8833a6199ce5",
+  "prompts": {},
+  "sessions": {
+    "s_cf7cb2f320c1bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a338b69-fc3a-4477-aee9-0b0843f65294",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "David Hodge <dave@proteanfalcon.com>"
+    }
+  }
+}
